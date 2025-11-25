@@ -74,17 +74,13 @@
             transition: all 0.2s;
         }
         
-        #content.hello-world .word:hover {
-            background-color: rgba(9, 105, 218, 0.1);
-            border-radius: 3px;
-        }
         
         .word {
             cursor: pointer;
             padding: 1px 1px;
             border-radius: 3px;
             transition: background-color 0.2s;
-            -webkit-tap-highlight-color: rgba(255, 255, 0, 0.3);
+            -webkit-tap-highlight-color: transparent;
             touch-action: manipulation;
             user-select: text;
             -webkit-user-select: text;
@@ -93,12 +89,9 @@
         }
         
         .word:active {
-            background-color: #fffb00;
+            background-color: transparent;
         }
         
-        .word:hover {
-            background-color: #fff8b1;
-        }
         
         /* Highlighted words (selected for definition) */
         .word-highlighted {
@@ -1667,6 +1660,14 @@
         let mouseDownTime = 0;
         let mouseDownPos = { x: 0, y: 0 };
         
+        // Mobile touch state for scroll detection
+        let touchStartTime = 0;
+        let touchStartPos = { x: 0, y: 0 };
+        let touchStartScrollY = 0;
+        let isScrolling = false;
+        let touchMoved = false;
+        let isMobileDevice = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || (navigator.maxTouchPoints && navigator.maxTouchPoints > 1);
+        
         function makeWordsClickable(text) {
             // Split text into words while preserving spaces and line breaks
             // Use data attributes instead of onclick to allow text selection
@@ -1686,11 +1687,132 @@
             contentDiv.removeEventListener('mousedown', handleWordMouseDown);
             contentDiv.removeEventListener('mouseup', handleWordMouseUp);
             contentDiv.removeEventListener('click', handleWordClick);
+            contentDiv.removeEventListener('touchstart', handleWordTouchStart, { passive: true });
+            contentDiv.removeEventListener('touchmove', handleWordTouchMove, { passive: true });
+            contentDiv.removeEventListener('touchend', handleWordTouchEnd, { passive: true });
             
-            // Add new listeners
-            contentDiv.addEventListener('mousedown', handleWordMouseDown);
-            contentDiv.addEventListener('mouseup', handleWordMouseUp);
-            contentDiv.addEventListener('click', handleWordClick);
+            if (isMobileDevice) {
+                // Mobile: use touch events with scroll detection
+                contentDiv.addEventListener('touchstart', handleWordTouchStart, { passive: true });
+                contentDiv.addEventListener('touchmove', handleWordTouchMove, { passive: true });
+                contentDiv.addEventListener('touchend', handleWordTouchEnd, { passive: true });
+            } else {
+                // Desktop: use mouse events
+                contentDiv.addEventListener('mousedown', handleWordMouseDown);
+                contentDiv.addEventListener('mouseup', handleWordMouseUp);
+                contentDiv.addEventListener('click', handleWordClick);
+            }
+        }
+        
+        // Mobile touch handlers
+        function handleWordTouchStart(event) {
+            const wordElement = event.target.closest('.word');
+            if (wordElement) {
+                touchStartTime = Date.now();
+                const touch = event.touches[0];
+                touchStartPos = { x: touch.clientX, y: touch.clientY };
+                touchStartScrollY = window.pageYOffset || document.documentElement.scrollTop;
+                isScrolling = false;
+                touchMoved = false;
+            } else {
+                touchStartPos = { x: 0, y: 0 };
+            }
+        }
+        
+        function handleWordTouchMove(event) {
+            if (touchStartPos.x === 0 && touchStartPos.y === 0) return;
+            
+            const touch = event.touches[0];
+            const moveX = Math.abs(touch.clientX - touchStartPos.x);
+            const moveY = Math.abs(touch.clientY - touchStartPos.y);
+            
+            // If movement is significant, it's likely scrolling
+            if (moveX > 5 || moveY > 5) {
+                touchMoved = true;
+                // Check if vertical movement is significant (scrolling)
+                if (moveY > 10) {
+                    isScrolling = true;
+                }
+            }
+        }
+        
+        function handleWordTouchEnd(event) {
+            const wordElement = event.target.closest('.word');
+            if (!wordElement) {
+                isScrolling = false;
+                touchMoved = false;
+                return;
+            }
+            
+            // Wait a bit to check if scrolling occurred
+            setTimeout(() => {
+                // Check if page scrolled during touch
+                const currentScrollY = window.pageYOffset || document.documentElement.scrollTop;
+                const scrolledDuringTouch = Math.abs(currentScrollY - touchStartScrollY) > 5;
+                
+                // Check if there's a text selection
+                const selection = window.getSelection();
+                const hasSelection = selection.toString().trim().length > 0;
+                
+                if (hasSelection) {
+                    isSelecting = true;
+                    handleTextSelection();
+                    isScrolling = false;
+                    touchMoved = false;
+                    return;
+                }
+                
+                const touch = event.changedTouches[0];
+                const touchDuration = Date.now() - touchStartTime;
+                const touchMove = Math.abs(touch.clientX - touchStartPos.x) + Math.abs(touch.clientY - touchStartPos.y);
+                
+                // Only process as click if:
+                // - NOT scrolling (most important)
+                // - NOT scrolled during touch
+                // - Movement is minimal (less than 10px)
+                // - Touch duration is reasonable (100-800ms)
+                // - No text selection
+                if (!isScrolling && !scrolledDuringTouch && !touchMoved && touchMove < 10 && touchDuration >= 100 && touchDuration <= 800 && !hasSelection) {
+                    // This is a deliberate tap, process word click
+                    const word = wordElement.getAttribute('data-word');
+                    if (word) {
+                        // Decode HTML entities
+                        const decodedWord = word.replace(/&#39;/g, "'").replace(/&quot;/g, '"');
+                        
+                        // Check if this word is adjacent to the last clicked word
+                        const isAdjacent = checkIfAdjacent(wordElement, lastClickedWordElement);
+                        
+                        if (isAdjacent && lastClickedWordElement && currentPhrase.length > 0) {
+                            // Add word to current phrase (order will be sorted)
+                            currentPhrase.push(decodedWord);
+                            currentPhraseElements.push(wordElement);
+                            lastClickedWordElement = wordElement;
+                            // Highlight the new word
+                            highlightWord(wordElement);
+                            // Sort phrase to maintain left-to-right reading order
+                            sortPhraseLeftToRight();
+                            // Get definition for merged phrase (now in correct order)
+                            const mergedPhrase = currentPhrase.join(' ');
+                            getDefinition(mergedPhrase);
+                        } else {
+                            // New word (not adjacent), start new phrase
+                            // Clear previous highlights
+                            clearHighlights();
+                            // Start new phrase
+                            currentPhrase = [decodedWord];
+                            currentPhraseElements = [wordElement];
+                            lastClickedWordElement = wordElement;
+                            // Highlight the new word
+                            highlightWord(wordElement);
+                            getDefinition(decodedWord);
+                        }
+                    }
+                }
+                
+                // Reset flags
+                isScrolling = false;
+                touchMoved = false;
+            }, 150); // Delay to detect scrolling
         }
         
         function handleWordMouseDown(event) {
@@ -1720,6 +1842,11 @@
         }
         
         function handleWordClick(event) {
+            // Skip on mobile (uses touch handlers)
+            if (isMobileDevice) {
+                return;
+            }
+            
             // Only handle click if it's a quick click (not a selection)
             const clickDuration = Date.now() - mouseDownTime;
             const mouseMove = Math.abs(event.clientX - mouseDownPos.x) + Math.abs(event.clientY - mouseDownPos.y);
