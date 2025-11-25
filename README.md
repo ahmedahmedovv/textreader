@@ -64,7 +64,7 @@ The app fully supports international characters and languages:
 - ✅ **Emoji support**: Full emoji rendering
 - ✅ **RTL (Right-to-Left)**: Automatic text direction detection for Arabic, Hebrew, etc.
 
-**Note**: Text files should be saved with UTF-8 encoding for best results. The app automatically detects and handles RTL languages.
+**Note**: The app automatically detects and handles multiple text encodings (UTF-8, Windows-1252, ISO-8859-1, etc.) to properly display special characters like curly quotes, apostrophes, and symbols. If you see incorrect characters (like "€™s"), the app will try to fix them automatically. For best results, save files as UTF-8 encoding.
 
 ### File Size Limits
 

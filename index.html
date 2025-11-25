@@ -1023,24 +1023,95 @@
                     return;
                 }
             } else {
-                // Handle text file
+                // Handle text file with automatic encoding detection
                 try {
-                    const reader = new FileReader();
-                    await new Promise((resolve, reject) => {
-                        reader.onload = function(e) {
-                            text = e.target.result;
-                            resolve();
-                        };
-                        reader.onerror = function(error) {
-                            console.error('FileReader error:', error);
-                            reject(new Error('Failed to read file. Please ensure the file is a valid text file with UTF-8 encoding.'));
-                        };
-                        // Explicitly specify UTF-8 encoding for international characters
-                        reader.readAsText(file, 'UTF-8');
-                    });
+                    // Try multiple encodings - Windows-1252 is very common for files with special characters
+                    const encodings = [
+                        'windows-1252',  // Try this first - handles curly quotes, Euro, trademark, etc.
+                        'UTF-8',
+                        '',              // Browser default
+                        'ISO-8859-1',    // Latin-1
+                        'ISO-8859-15'    // Latin-9
+                    ];
+                    
+                    let decoded = false;
+                    let bestResult = null;
+                    let bestScore = -1;
+                    
+                    // Try each encoding and score the result
+                    for (const encoding of encodings) {
+                        try {
+                            const reader = new FileReader();
+                            const result = await new Promise((resolve, reject) => {
+                                reader.onload = function(e) {
+                                    resolve(e.target.result);
+                                };
+                                reader.onerror = function(error) {
+                                    reject(error);
+                                };
+                                
+                                if (encoding) {
+                                    reader.readAsText(file, encoding);
+                                } else {
+                                    reader.readAsText(file); // Browser default
+                                }
+                            });
+                            
+                            // Score the result: fewer replacement characters = better
+                            const replacementCharCount = (result.match(/\uFFFD/g) || []).length;
+                            const totalChars = result.length;
+                            const score = totalChars > 0 ? 1 - (replacementCharCount / totalChars) : 0;
+                            
+                            // Also check for common encoding artifacts (like €™s pattern)
+                            const hasEncodingArtifacts = /[€™‚ƒ„…†‡ˆ‰Š‹ŒŽ''""–—˜™š›œžŸ]/g.test(result);
+                            
+                            if (score > bestScore) {
+                                bestResult = result;
+                                bestScore = score;
+                                
+                                // If we found a good result with Windows-1252 and no artifacts, use it
+                                if (encoding === 'windows-1252' && score > 0.99 && !hasEncodingArtifacts) {
+                                    text = result;
+                                    decoded = true;
+                                    console.log('Using Windows-1252 encoding (best match)');
+                                    break;
+                                }
+                            }
+                            
+                        } catch (e) {
+                            // Continue to next encoding
+                            continue;
+                        }
+                    }
+                    
+                    // Use the best result we found
+                    if (!decoded && bestResult) {
+                        text = bestResult;
+                        decoded = true;
+                        console.log(`Using best encoding match (score: ${(bestScore * 100).toFixed(1)}%)`);
+                    }
+                    
+                    // If still not decoded, use UTF-8 as final fallback
+                    if (!decoded) {
+                        console.warn('Using UTF-8 fallback');
+                        const reader = new FileReader();
+                        await new Promise((resolve, reject) => {
+                            reader.onload = function(e) {
+                                text = e.target.result;
+                                decoded = true;
+                                resolve();
+                            };
+                            reader.onerror = reject;
+                            reader.readAsText(file, 'UTF-8');
+                        });
+                    }
+                    
+                    // Apply common encoding fixes (fixes smart quotes, etc.)
+                    text = fixCommonEncodingIssues(text);
+                    
                 } catch (error) {
                     document.body.removeChild(loadingMsg);
-                    alert('Error reading text file: ' + error.message);
+                    alert('Error reading text file: ' + error.message + '\n\nTip: If you see incorrect characters, try saving your file as UTF-8 in your text editor before importing.');
                     event.target.value = '';
                     return;
                 }
@@ -1110,6 +1181,45 @@
             
             // Reset file input so same file can be selected again
             event.target.value = '';
+        }
+        
+        // Fix common encoding issues (smart quotes, special characters)
+        function fixCommonEncodingIssues(text) {
+            // Common Windows-1252 to UTF-8 mapping issues
+            // These are characters that often get misinterpreted
+            const fixes = [
+                // Smart quotes and apostrophes (most common issue)
+                [/\u2018/g, "'"],  // Left single quotation mark → apostrophe
+                [/\u2019/g, "'"],  // Right single quotation mark → apostrophe
+                [/\u201C/g, '"'],  // Left double quotation mark → quote
+                [/\u201D/g, '"'],  // Right double quotation mark → quote
+                [/\u201A/g, ','],  // Single low-9 quotation mark → comma
+                [/\u201E/g, '"'],  // Double low-9 quotation mark → quote
+                [/\u2032/g, "'"],  // Prime → apostrophe
+                [/\u2033/g, '"'],  // Double prime → quote
+                // Fix specific problematic sequences
+                [/€™/g, "'"],      // Common misinterpreted sequence → apostrophe
+                [/€™/g, "'"],      // Euro + trademark → apostrophe
+                [/â€™/g, "'"],     // UTF-8 misinterpretation of Windows-1252 apostrophe
+                [/â€œ/g, '"'],     // UTF-8 misinterpretation of left quote
+                [/â€/g, '"'],      // UTF-8 misinterpretation of right quote
+                [/â€"/g, '"'],     // UTF-8 misinterpretation of right quote (variant)
+                // Dashes
+                [/\u2013/g, '-'],  // En dash → hyphen
+                [/\u2014/g, '--'], // Em dash → double hyphen
+                // Other common issues
+                [/\u2026/g, '...'], // Horizontal ellipsis → three dots
+                [/\u00A0/g, ' '],  // Non-breaking space → regular space
+                // Fix trademark and other symbols that might appear incorrectly
+                [/\u2122/g, '™'],  // Keep trademark if it's correct, but fix if it's part of a sequence
+            ];
+            
+            let fixed = text;
+            fixes.forEach(([pattern, replacement]) => {
+                fixed = fixed.replace(pattern, replacement);
+            });
+            
+            return fixed;
         }
         
         // Detect if text contains RTL (Right-to-Left) characters
