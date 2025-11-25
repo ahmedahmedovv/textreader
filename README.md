@@ -57,10 +57,12 @@ A modern, mobile-friendly web application for reading text documents with intera
 ## Technical Details
 
 - **Frontend**: Pure HTML, CSS, and JavaScript
-- **AI Integration**: Mistral AI API for word definitions
+- **AI Integration**: Mistral AI API for word definitions (proxied through Netlify Functions for security)
+- **Backend**: Netlify serverless functions to securely handle API keys
 - **PDF Processing**: PDF.js library for PDF text extraction
 - **Storage**: LocalStorage for saving preferences and imported content
 - **Design System**: GitHub Primer CSS
+- **Security**: API keys are stored server-side only, never exposed to clients
 
 ## Requirements
 

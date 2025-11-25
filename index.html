@@ -784,8 +784,8 @@
     </div>
     
     <script>
-        const MISTRAL_API_KEY = 'UyFZtjZY3r5aNe1th2qtx6IBLynCc0ai';
-        const MISTRAL_API_URL = 'https://api.mistral.ai/v1/chat/completions';
+        // API endpoint - uses Netlify function to hide API key
+        const DEFINITION_API_URL = '/.netlify/functions/get-definition';
         
         let pages = [];
         let currentPage = 0;
@@ -1113,24 +1113,23 @@
                 const promptTemplate = getPrompt();
                 const prompt = promptTemplate.replace('{word}', cleanWord);
                 
-                const response = await fetch(MISTRAL_API_URL, {
+                // Call Netlify function (which proxies to Mistral API with hidden API key)
+                const response = await fetch(DEFINITION_API_URL, {
                     method: 'POST',
                     headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': 'Bearer ' + MISTRAL_API_KEY
+                        'Content-Type': 'application/json'
                     },
                     body: JSON.stringify({
-                        model: 'mistral-tiny',
-                        messages: [
-                            {
-                                role: 'user',
-                                content: prompt
-                            }
-                        ],
-                        max_tokens: 100
+                        word: cleanWord,
+                        prompt: prompt
                     })
                 });
 
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.error || 'Failed to fetch definition');
+                }
+                
                 const data = await response.json();
                 
                 contentDiv.classList.remove('loading');
