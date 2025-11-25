@@ -31,7 +31,9 @@ A modern, mobile-friendly web application for reading text documents with intera
 ### Basic Usage
 
 - **Read Text**: The app displays text content with clickable words
-- **Get Definitions**: Click any word to see its English definition in a popup
+- **Get Definitions**: 
+  - **Single word**: Click any word to see its English definition
+  - **Multiple words**: Select text (drag to select multiple words) and click the "📖 Get Definition" button that appears
 - **Navigate Pages**: Use "Previous" and "Next" buttons at the bottom for long documents
 - **Settings Menu**: Click the ⚙️ gear icon (top-right) to access:
   - **Import Text**: Upload `.txt` or `.pdf` files

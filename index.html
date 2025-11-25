@@ -86,6 +86,10 @@
             transition: background-color 0.2s;
             -webkit-tap-highlight-color: rgba(255, 255, 0, 0.3);
             touch-action: manipulation;
+            user-select: text;
+            -webkit-user-select: text;
+            -moz-user-select: text;
+            -ms-user-select: text;
         }
         
         .word:active {
@@ -94,6 +98,86 @@
         
         .word:hover {
             background-color: #fff8b1;
+        }
+        
+        /* Highlighted words (selected for definition) */
+        .word-highlighted {
+            background-color: #0969da !important;
+            color: #ffffff !important;
+            border-radius: 4px;
+            padding: 2px 4px;
+            font-weight: 500;
+            box-shadow: 0 2px 4px rgba(9, 105, 218, 0.3);
+        }
+        
+        .word-highlighted:hover {
+            background-color: #0860ca !important;
+        }
+        
+        /* Selection button for multiple words */
+        #selection-definition-btn {
+            position: fixed;
+            display: none;
+            background: #0969da;
+            color: #ffffff;
+            border: none;
+            border-radius: 8px;
+            padding: 10px 18px;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+            z-index: 10000;
+            transition: all 0.2s;
+            pointer-events: auto;
+            user-select: none;
+            -webkit-user-select: none;
+            white-space: nowrap;
+            min-width: 160px;
+            text-align: center;
+        }
+        
+        #selection-definition-btn:hover {
+            background: #0860ca;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 16px rgba(0,0,0,0.4);
+        }
+        
+        #selection-definition-btn:active {
+            background: #0550ae;
+            transform: translateY(0);
+        }
+        
+        #selection-definition-btn.show {
+            display: block;
+            animation: slideIn 0.2s ease-out;
+        }
+        
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        /* Improve text selection */
+        #content {
+            -webkit-user-select: text;
+            -moz-user-select: text;
+            -ms-user-select: text;
+            user-select: text;
+        }
+        
+        /* Ensure word spans don't prevent selection */
+        #content .word {
+            -webkit-user-select: text;
+            -moz-user-select: text;
+            -ms-user-select: text;
+            user-select: text;
         }
         
         #definition {
@@ -904,6 +988,14 @@
                 font-size: 16px; /* Prevents zoom on iOS */
                 padding: 10px 12px;
             }
+            
+            #selection-definition-btn {
+                padding: 12px 20px;
+                font-size: 16px;
+                min-width: 160px;
+                border-radius: 10px;
+                box-shadow: 0 6px 20px rgba(0,0,0,0.5);
+            }
         }
     </style>
 </head>
@@ -915,6 +1007,8 @@
         </div>
         <div id="definition-content" class="loading">Loading definition...</div>
     </div>
+    
+    <button id="selection-definition-btn" onclick="getDefinitionForSelection(event)">📖 Get Definition</button>
     
     <button id="settings-btn" onclick="toggleSettingsMenu()" title="Settings">⚙️</button>
     <div id="menu-overlay" onclick="closeSettingsMenu(); closePromptSettings(); closeGotoPageModal();"></div>
@@ -979,8 +1073,15 @@
     <script>
         // API endpoint - uses Netlify function to hide API key
         const DEFINITION_API_URL = '/.netlify/functions/get-definition';
+        // For local development - API key (only used if Netlify function is not available)
+        const MISTRAL_API_KEY = 'aUyFZtjZY3r5aNe1th2qtx6IBLynCc0ai';
+        const MISTRAL_API_URL = 'https://api.mistral.ai/v1/chat/completions';
         
         let pages = [];
+        let currentPhrase = []; // Track clicked adjacent words to form a phrase
+        let currentPhraseElements = []; // Track word elements in same order as currentPhrase
+        let lastClickedWordElement = null; // Track last clicked word element
+        let highlightedWordElements = []; // Track highlighted word elements
         let currentPage = 0;
         let originalText = ''; // Store original text for export
         const LINES_PER_PAGE = 50; // Adjust this to change page size
@@ -1561,10 +1662,186 @@
             location.reload();
         }
 
+        // Track mouse state for selection detection
+        let isSelecting = false;
+        let mouseDownTime = 0;
+        let mouseDownPos = { x: 0, y: 0 };
+        
         function makeWordsClickable(text) {
             // Split text into words while preserving spaces and line breaks
-            return text.replace(/(\S+)/g, '<span class="word" onclick="getDefinition(\'$1\')">$1</span>');
+            // Use data attributes instead of onclick to allow text selection
+            return text.replace(/(\S+)/g, function(match) {
+                // Escape quotes in the word for data attribute
+                const escaped = match.replace(/'/g, "&#39;").replace(/"/g, '&quot;');
+                return '<span class="word" data-word="' + escaped + '">' + match + '</span>';
+            });
         }
+        
+        // Initialize word click handlers after content is loaded
+        function initWordClicks() {
+            const contentDiv = document.getElementById('content');
+            if (!contentDiv) return;
+            
+            // Remove old listeners if any
+            contentDiv.removeEventListener('mousedown', handleWordMouseDown);
+            contentDiv.removeEventListener('mouseup', handleWordMouseUp);
+            contentDiv.removeEventListener('click', handleWordClick);
+            
+            // Add new listeners
+            contentDiv.addEventListener('mousedown', handleWordMouseDown);
+            contentDiv.addEventListener('mouseup', handleWordMouseUp);
+            contentDiv.addEventListener('click', handleWordClick);
+        }
+        
+        function handleWordMouseDown(event) {
+            // Check if clicking on a word
+            const wordElement = event.target.closest('.word');
+            if (wordElement) {
+                mouseDownTime = Date.now();
+                mouseDownPos = { x: event.clientX, y: event.clientY };
+                isSelecting = false;
+            }
+        }
+        
+        function handleWordMouseUp(event) {
+            // Small delay to check if text was selected
+            setTimeout(function() {
+                const selection = window.getSelection();
+                const hasSelection = selection.toString().trim().length > 0;
+                
+                if (hasSelection) {
+                    isSelecting = true;
+                    // Text was selected, show selection button
+                    handleTextSelection();
+                } else {
+                    isSelecting = false;
+                }
+            }, 10);
+        }
+        
+        function handleWordClick(event) {
+            // Only handle click if it's a quick click (not a selection)
+            const clickDuration = Date.now() - mouseDownTime;
+            const mouseMove = Math.abs(event.clientX - mouseDownPos.x) + Math.abs(event.clientY - mouseDownPos.y);
+            
+            // If user moved mouse more than 5px or took more than 300ms, it was a selection, not a click
+            if (mouseMove > 5 || clickDuration > 300) {
+                return;
+            }
+            
+            // Check if there's a text selection
+            const selection = window.getSelection();
+            if (selection.toString().trim().length > 0) {
+                return; // User was selecting, don't trigger word click
+            }
+            
+            // Check if clicking on a word
+            const wordElement = event.target.closest('.word');
+            if (wordElement && !isSelecting) {
+                const word = wordElement.getAttribute('data-word');
+                if (word) {
+                    // Decode HTML entities
+                    const decodedWord = word.replace(/&#39;/g, "'").replace(/&quot;/g, '"');
+                    
+                    // Check if this word is adjacent to the last clicked word
+                    const isAdjacent = checkIfAdjacent(wordElement, lastClickedWordElement);
+                    
+                    if (isAdjacent && lastClickedWordElement && currentPhrase.length > 0) {
+                        // Add word to current phrase (order will be sorted)
+                        currentPhrase.push(decodedWord);
+                        currentPhraseElements.push(wordElement);
+                        lastClickedWordElement = wordElement;
+                        // Highlight the new word
+                        highlightWord(wordElement);
+                        // Sort phrase to maintain left-to-right reading order
+                        sortPhraseLeftToRight();
+                        // Get definition for merged phrase (now in correct order)
+                        const mergedPhrase = currentPhrase.join(' ');
+                        getDefinition(mergedPhrase);
+                    } else {
+                        // New word (not adjacent), start new phrase
+                        // Clear previous highlights
+                        clearHighlights();
+                        // Start new phrase
+                        currentPhrase = [decodedWord];
+                        currentPhraseElements = [wordElement];
+                        lastClickedWordElement = wordElement;
+                        // Highlight the new word
+                        highlightWord(wordElement);
+                        getDefinition(decodedWord);
+                    }
+                }
+            }
+        }
+        
+        // Clear all highlighted words
+        function clearHighlights() {
+            highlightedWordElements.forEach(element => {
+                if (element) {
+                    element.classList.remove('word-highlighted');
+                }
+            });
+            highlightedWordElements = [];
+        }
+        
+        // Highlight a word element
+        function highlightWord(element) {
+            if (element && !element.classList.contains('word-highlighted')) {
+                element.classList.add('word-highlighted');
+                highlightedWordElements.push(element);
+            }
+        }
+        
+        // Check if two word elements are adjacent in the DOM
+        function checkIfAdjacent(currentElement, previousElement) {
+            if (!previousElement || !currentElement) {
+                return false;
+            }
+            
+            // Must have the same parent
+            if (previousElement.parentElement !== currentElement.parentElement) {
+                return false;
+            }
+            
+            // Get all word elements from the same parent
+            const parent = previousElement.parentElement;
+            const allWords = Array.from(parent.querySelectorAll('.word'));
+            
+            const prevIndex = allWords.indexOf(previousElement);
+            const currentIndex = allWords.indexOf(currentElement);
+            
+            // Adjacent if indices differ by exactly 1
+            return Math.abs(currentIndex - prevIndex) === 1;
+        }
+        
+        // Sort phrase and elements to maintain left-to-right reading order
+        function sortPhraseLeftToRight() {
+            if (currentPhraseElements.length === 0) return;
+            
+            // Get all word elements from the parent
+            const parent = currentPhraseElements[0].parentElement;
+            if (!parent) return;
+            
+            const allWords = Array.from(parent.querySelectorAll('.word'));
+            
+            // Create array of indices and words
+            const phraseWithIndices = currentPhraseElements.map((element, idx) => {
+                const index = allWords.indexOf(element);
+                return {
+                    index: index,
+                    word: currentPhrase[idx],
+                    element: element
+                };
+            });
+            
+            // Sort by DOM index (left to right)
+            phraseWithIndices.sort((a, b) => a.index - b.index);
+            
+            // Update arrays in sorted order
+            currentPhrase = phraseWithIndices.map(item => item.word);
+            currentPhraseElements = phraseWithIndices.map(item => item.element);
+        }
+        
         
         function splitIntoPages(text) {
             const lines = text.split('\n');
@@ -1581,6 +1858,12 @@
         function displayPage(pageIndex) {
             if (pageIndex < 0 || pageIndex >= pages.length) return;
             
+            // Clear highlights when changing pages
+            clearHighlights();
+            currentPhrase = [];
+            currentPhraseElements = [];
+            lastClickedWordElement = null;
+            
             currentPage = pageIndex;
             const contentDiv = document.getElementById('content');
             const pageContent = pages[currentPage].trim();
@@ -1594,6 +1877,9 @@
                 contentDiv.classList.remove('hello-world');
                 contentDiv.innerHTML = makeWordsClickable(pageContent);
             }
+            
+            // Initialize word click handlers after content is set
+            setTimeout(initWordClicks, 0);
             
             // Update pagination controls
             document.getElementById('page-info').textContent = `Page ${currentPage + 1} of ${pages.length}`;
@@ -1691,17 +1977,194 @@
             initGotoPageInput();
         }
 
+        // Get selected text
+        function getSelectedText() {
+            const selection = window.getSelection();
+            if (selection.rangeCount > 0) {
+                const selectedText = selection.toString().trim();
+                return selectedText;
+            }
+            return null;
+        }
+        
+        // Detect iOS device
+        function isIOS() {
+            return /iPad|iPhone|iPod/.test(navigator.userAgent) || 
+                   (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+        }
+        
+        // Show/hide selection button and auto-get definition for multi-word selections
+        function handleTextSelection() {
+            const selectedText = getSelectedText();
+            const btn = document.getElementById('selection-definition-btn');
+            
+            if (selectedText && selectedText.length > 0) {
+                // Check if selection contains multiple words (adjacent words)
+                const wordCount = selectedText.trim().split(/\s+/).length;
+                const isMultiWord = wordCount > 1;
+                
+                // If multiple words are selected, automatically get definition
+                if (isMultiWord) {
+                    // Clean the selected text (remove extra whitespace, keep punctuation for phrases)
+                    const cleanText = selectedText.replace(/\s+/g, ' ').trim();
+                    if (cleanText) {
+                        // On iOS, add a small delay to let native menu appear first
+                        const delay = isIOS() ? 400 : 100;
+                        
+                        setTimeout(() => {
+                            // Clear selection first
+                            window.getSelection().removeAllRanges();
+                            // Hide button (we're auto-triggering)
+                            btn.classList.remove('show');
+                            // Get definition automatically for merged words
+                            getDefinition(cleanText);
+                        }, delay);
+                        
+                        return; // Exit early, don't show button
+                    }
+                }
+                
+                // For single word selections, show the button (user can click to get definition)
+                // Get selection position
+                const selection = window.getSelection();
+                if (selection.rangeCount > 0) {
+                    const range = selection.getRangeAt(0);
+                    const rect = range.getBoundingClientRect();
+                    
+                    // Calculate button position
+                    const buttonWidth = 150; // Approximate button width
+                    const buttonHeight = 40;
+                    const iosMenuHeight = 50; // iOS selection menu is typically ~50px tall
+                    const spacing = 15; // Spacing from selection
+                    
+                    const viewportWidth = window.innerWidth;
+                    const viewportHeight = window.innerHeight;
+                    const isIOSDevice = isIOS();
+                    
+                    let top, left;
+                    
+                    if (isIOSDevice) {
+                        // On iOS: position button BELOW selection to avoid conflict with iOS menu (which appears above)
+                        // Add extra space to account for iOS menu
+                        top = rect.bottom + window.scrollY + iosMenuHeight + spacing;
+                        
+                        // If that would go off screen, try positioning to the right side
+                        if (top + buttonHeight > window.scrollY + viewportHeight - 10) {
+                            // Position to the right of selection
+                            left = rect.right + window.scrollX + spacing;
+                            top = rect.top + window.scrollY + (rect.height / 2) - (buttonHeight / 2);
+                            
+                            // If right side doesn't fit, try left side
+                            if (left + buttonWidth > viewportWidth - 10) {
+                                left = rect.left + window.scrollX - buttonWidth - spacing;
+                                
+                                // If left side doesn't fit either, position below but adjust
+                                if (left < 10) {
+                                    left = rect.left + window.scrollX + (rect.width / 2) - (buttonWidth / 2);
+                                    top = rect.bottom + window.scrollY + spacing;
+                                    
+                                    // Final fallback: position at bottom of viewport
+                                    if (top + buttonHeight > window.scrollY + viewportHeight - 10) {
+                                        top = window.scrollY + viewportHeight - buttonHeight - 10;
+                                    }
+                                }
+                            }
+                        } else {
+                            // Position centered horizontally below selection
+                            left = rect.left + window.scrollX + (rect.width / 2) - (buttonWidth / 2);
+                        }
+                    } else {
+                        // On desktop: try above first, then below if needed
+                        top = rect.top + window.scrollY - buttonHeight - spacing;
+                        left = rect.left + window.scrollX + (rect.width / 2) - (buttonWidth / 2);
+                        
+                        // If selection is near top, show button below instead
+                        if (top < window.scrollY + 10) {
+                            top = rect.bottom + window.scrollY + spacing;
+                        }
+                    }
+                    
+                    // Keep button within viewport horizontally
+                    if (left < 10) {
+                        left = 10;
+                    } else if (left + buttonWidth > viewportWidth - 10) {
+                        left = viewportWidth - buttonWidth - 10;
+                    }
+                    
+                    // Ensure button doesn't go below viewport
+                    if (top + buttonHeight > window.scrollY + viewportHeight - 10) {
+                        top = window.scrollY + viewportHeight - buttonHeight - 10;
+                    }
+                    
+                    // On iOS, add a small delay to let native menu appear first
+                    if (isIOSDevice) {
+                        setTimeout(() => {
+                            btn.style.top = top + 'px';
+                            btn.style.left = left + 'px';
+                            btn.classList.add('show');
+                        }, 200); // 200ms delay to let iOS menu appear
+                    } else {
+                        btn.style.top = top + 'px';
+                        btn.style.left = left + 'px';
+                        btn.classList.add('show');
+                    }
+                }
+            } else {
+                btn.classList.remove('show');
+            }
+        }
+        
+        // Get definition for selected text
+        function getDefinitionForSelection(event) {
+            // Prevent event from bubbling up
+            if (event) {
+                event.preventDefault();
+                event.stopPropagation();
+            }
+            
+            const selectedText = getSelectedText();
+            console.log('Selected text:', selectedText); // Debug
+            
+            if (selectedText && selectedText.trim().length > 0) {
+                // Clean the selected text (remove extra whitespace, keep punctuation for phrases)
+                const cleanText = selectedText.replace(/\s+/g, ' ').trim();
+                console.log('Cleaned text:', cleanText); // Debug
+                
+                if (cleanText) {
+                    // Clear selection first
+                    window.getSelection().removeAllRanges();
+                    // Hide button
+                    const btn = document.getElementById('selection-definition-btn');
+                    if (btn) {
+                        btn.classList.remove('show');
+                    }
+                    // Get definition
+                    getDefinition(cleanText);
+                } else {
+                    console.warn('No clean text to define');
+                }
+            } else {
+                console.warn('No text selected');
+            }
+        }
+        
         async function getDefinition(word) {
-            // Clean the word (remove punctuation)
-            const cleanWord = word.replace(/[^\w]/g, '');
+            // Clean the word/phrase (remove extra whitespace, but keep punctuation for phrases)
+            // For single words, remove punctuation; for phrases, keep it
+            const isPhrase = word.split(/\s+/).length > 1;
+            const cleanWord = isPhrase 
+                ? word.replace(/\s+/g, ' ').trim()  // Keep spaces and punctuation for phrases
+                : word.replace(/[^\w]/g, '');      // Remove punctuation for single words
+            
             if (!cleanWord) return;
 
             const definitionDiv = document.getElementById('definition');
             const contentDiv = document.getElementById('definition-content');
             const wordHeader = document.getElementById('definition-word');
             
-            // Set the word in header
-            wordHeader.textContent = cleanWord;
+            // Set the phrase in header (use currentPhrase if available, otherwise use the word)
+            const phrase = currentPhrase.length > 0 ? currentPhrase.join(' ') : cleanWord;
+            wordHeader.textContent = phrase;
             
             // Show definition popup
             definitionDiv.classList.remove('hidden');
@@ -1714,24 +2177,62 @@
                 const promptTemplate = getPrompt();
                 const prompt = promptTemplate.replace('{word}', cleanWord);
                 
-                // Call Netlify function (which proxies to Mistral API with hidden API key)
-                const response = await fetch(DEFINITION_API_URL, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        word: cleanWord,
-                        prompt: prompt
-                    })
-                });
-
-                if (!response.ok) {
-                    const errorData = await response.json();
-                    throw new Error(errorData.error || 'Failed to fetch definition');
-                }
+                let data;
                 
-                const data = await response.json();
+                // Try Netlify function first (for production)
+                try {
+                    const response = await fetch(DEFINITION_API_URL, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            word: cleanWord,
+                            prompt: prompt
+                        })
+                    });
+
+                    // Check if response is HTML (means Netlify function doesn't exist - local dev)
+                    const contentType = response.headers.get('content-type');
+                    if (contentType && contentType.includes('text/html')) {
+                        throw new Error('Netlify function not available, using direct API');
+                    }
+
+                    if (!response.ok) {
+                        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+                        throw new Error(errorData.error || 'Failed to fetch definition');
+                    }
+                    
+                    data = await response.json();
+                } catch (error) {
+                    // Fallback to direct API call for local development
+                    console.log('Using direct Mistral API (local development mode)');
+                    
+                    const response = await fetch(MISTRAL_API_URL, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': 'Bearer ' + MISTRAL_API_KEY
+                        },
+                        body: JSON.stringify({
+                            model: 'mistral-tiny',
+                            messages: [
+                                {
+                                    role: 'user',
+                                    content: prompt
+                                }
+                            ],
+                            max_tokens: 100
+                        })
+                    });
+
+                    if (!response.ok) {
+                        const errorText = await response.text();
+                        throw new Error(`Mistral API error: ${errorText}`);
+                    }
+                    
+                    data = await response.json();
+                }
                 
                 contentDiv.classList.remove('loading');
                 
@@ -1750,17 +2251,89 @@
             const definitionDiv = document.getElementById('definition');
             definitionDiv.classList.remove('show');
             definitionDiv.classList.add('hidden');
+            // Reset phrase when closing
+            currentPhrase = [];
+            currentPhraseElements = [];
+            lastClickedWordElement = null;
+            // Clear highlights
+            clearHighlights();
         }
 
         // Close definition when tapping outside (mobile-friendly)
         document.addEventListener('click', function(event) {
             const definitionDiv = document.getElementById('definition');
+            const selectionBtn = document.getElementById('selection-definition-btn');
+            
+            // Don't process clicks on selection button - it handles its own click
+            if (event.target === selectionBtn || event.target.closest('#selection-definition-btn')) {
+                return;
+            }
+            
             if (definitionDiv.classList.contains('show') && 
                 !definitionDiv.contains(event.target) && 
                 !event.target.classList.contains('word')) {
                 closeDefinition();
             }
+            
+            // Hide selection button if clicking outside content area and selection button
+            if (!event.target.closest('#content') && !event.target.closest('#selection-definition-btn')) {
+                if (selectionBtn) {
+                    selectionBtn.classList.remove('show');
+                }
+            }
         });
+        
+        // Handle text selection
+        document.addEventListener('mouseup', handleTextSelection);
+        document.addEventListener('touchend', function() {
+            // On iOS, wait longer to let native selection menu appear first
+            const delay = isIOS() ? 300 : 100;
+            setTimeout(handleTextSelection, delay);
+        });
+        
+        // Handle selectionchange for both showing and hiding button
+        document.addEventListener('selectionchange', function() {
+            // Small delay to ensure selection is fully established
+            setTimeout(function() {
+                const selectedText = getSelectedText();
+                if (selectedText && selectedText.length > 0) {
+                    handleTextSelection();
+                } else {
+                    // Selection cleared, hide button
+                    document.getElementById('selection-definition-btn').classList.remove('show');
+                }
+            }, isIOS() ? 350 : 150);
+        });
+        
+        // Hide selection button on scroll
+        window.addEventListener('scroll', function() {
+            document.getElementById('selection-definition-btn').classList.remove('show');
+        });
+        
+        // Initialize selection button event listener
+        function initSelectionButton() {
+            const selectionBtn = document.getElementById('selection-definition-btn');
+            if (selectionBtn) {
+                // Add click event listener (in addition to onclick for better reliability)
+                selectionBtn.addEventListener('click', function(event) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    getDefinitionForSelection(event);
+                });
+                
+                // Prevent event bubbling on mousedown
+                selectionBtn.addEventListener('mousedown', function(event) {
+                    event.stopPropagation();
+                });
+            }
+        }
+        
+        // Initialize when DOM is ready
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initSelectionButton);
+        } else {
+            initSelectionButton();
+        }
 
         // Check if there's imported text in localStorage
         let showWelcome = true;
