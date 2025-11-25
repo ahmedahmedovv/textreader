@@ -36,7 +36,7 @@ A modern, mobile-friendly web application for reading text documents with intera
 - **Settings Menu**: Click the ⚙️ gear icon (top-right) to access:
   - **Import Text**: Upload `.txt` or `.pdf` files
   - **Export Text**: Download the current content as a text file
-  - **Reset to Default**: Restore the default "Hello World" text
+  - **Reset to Default**: Restore the default welcome message
   - **AI Prompt Settings**: Customize the prompt used for word definitions
 
 ### Customizing AI Prompts
@@ -67,6 +67,17 @@ A modern, mobile-friendly web application for reading text documents with intera
 - Python 3 (for local server)
 - Modern web browser with JavaScript enabled
 - Internet connection (for AI definitions)
+
+## Deployment
+
+This app is ready for deployment to Netlify. See [DEPLOY.md](DEPLOY.md) for detailed deployment instructions.
+
+### Quick Deploy to Netlify
+
+1. Push your code to GitHub/GitLab/Bitbucket
+2. Go to [Netlify](https://www.netlify.com/) and import your repository
+3. Netlify will auto-detect settings from `netlify.toml`
+4. Your site will be live in minutes!
 
 ## Notes
 
