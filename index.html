@@ -1236,18 +1236,24 @@
                             const totalChars = result.length;
                             const score = totalChars > 0 ? 1 - (replacementCharCount / totalChars) : 0;
                             
-                            // Also check for common encoding artifacts (like €™s pattern)
+                            // Check for common UTF-8 misinterpretation patterns (like "â€™", "donâ't")
+                            const hasUTF8Misinterpretation = /â[€™€"–—…™‚ƒ„…†‡ˆ‰Š‹ŒŽ''""–—˜™š›œžŸ]/g.test(result);
+                            
+                            // Check for common encoding artifacts
                             const hasEncodingArtifacts = /[€™‚ƒ„…†‡ˆ‰Š‹ŒŽ''""–—˜™š›œžŸ]/g.test(result);
                             
-                            if (score > bestScore) {
+                            // Penalize UTF-8 misinterpretations heavily
+                            const finalScore = hasUTF8Misinterpretation ? score * 0.5 : score;
+                            
+                            if (finalScore > bestScore) {
                                 bestResult = result;
-                                bestScore = score;
+                                bestScore = finalScore;
                                 
-                                // If we found a good result with Windows-1252 and no artifacts, use it
-                                if (encoding === 'windows-1252' && score > 0.99 && !hasEncodingArtifacts) {
+                                // If we found a good result with Windows-1252 and no UTF-8 misinterpretations, use it immediately
+                                if (encoding === 'windows-1252' && score > 0.99 && !hasUTF8Misinterpretation) {
                                     text = result;
                                     decoded = true;
-                                    console.log('Using Windows-1252 encoding (best match)');
+                                    console.log('Using Windows-1252 encoding (best match, no misinterpretations)');
                                     break;
                                 }
                             }
@@ -1278,6 +1284,33 @@
                             reader.onerror = reject;
                             reader.readAsText(file, 'UTF-8');
                         });
+                    }
+                    
+                    // Check if the result has UTF-8 misinterpretation patterns
+                    // If so, try Windows-1252 one more time as it's likely the correct encoding
+                    const hasMisinterpretation = /â[€™€"–—…™‚ƒ„…†‡ˆ‰Š‹ŒŽ''""–—˜™š›œžŸ]|(\w+)â't/g.test(text);
+                    if (hasMisinterpretation && text !== bestResult) {
+                        console.log('Detected UTF-8 misinterpretation patterns, trying Windows-1252 again...');
+                        try {
+                            const reader = new FileReader();
+                            const win1252Result = await new Promise((resolve, reject) => {
+                                reader.onload = function(e) {
+                                    resolve(e.target.result);
+                                };
+                                reader.onerror = reject;
+                                reader.readAsText(file, 'windows-1252');
+                            });
+                            
+                            // Check if Windows-1252 result is better (no misinterpretation patterns)
+                            const hasWin1252Misinterpretation = /â[€™€"–—…™‚ƒ„…†‡ˆ‰Š‹ŒŽ''""–—˜™š›œžŸ]|(\w+)â't/g.test(win1252Result);
+                            if (!hasWin1252Misinterpretation) {
+                                text = win1252Result;
+                                console.log('Switched to Windows-1252 encoding (fixes misinterpretations)');
+                            }
+                        } catch (e) {
+                            // If Windows-1252 fails, keep the original result
+                            console.warn('Could not retry with Windows-1252:', e);
+                        }
                     }
                     
                     // Apply common encoding fixes (fixes smart quotes, etc.)
@@ -1360,7 +1393,7 @@
         // Fix common encoding issues (smart quotes, special characters)
         function fixCommonEncodingIssues(text) {
             // Common Windows-1252 to UTF-8 mapping issues
-            // These are characters that often get misinterpreted
+            // These are characters that often get misinterpreted when Windows-1252 is read as UTF-8
             const fixes = [
                 // Smart quotes and apostrophes (most common issue)
                 [/\u2018/g, "'"],  // Left single quotation mark → apostrophe
@@ -1371,26 +1404,103 @@
                 [/\u201E/g, '"'],  // Double low-9 quotation mark → quote
                 [/\u2032/g, "'"],  // Prime → apostrophe
                 [/\u2033/g, '"'],  // Double prime → quote
-                // Fix specific problematic sequences
-                [/€™/g, "'"],      // Common misinterpreted sequence → apostrophe
-                [/€™/g, "'"],      // Euro + trademark → apostrophe
-                [/â€™/g, "'"],     // UTF-8 misinterpretation of Windows-1252 apostrophe
-                [/â€œ/g, '"'],     // UTF-8 misinterpretation of left quote
-                [/â€/g, '"'],      // UTF-8 misinterpretation of right quote
+                
+                // Fix UTF-8 misinterpretations of Windows-1252 characters
+                // These patterns handle cases where Windows-1252 bytes are read as UTF-8
+                [/â€™/g, "'"],     // UTF-8 misinterpretation of Windows-1252 apostrophe (0x92)
+                [/â€œ/g, '"'],     // UTF-8 misinterpretation of left quote (0x93)
+                [/â€/g, '"'],      // UTF-8 misinterpretation of right quote (0x94)
                 [/â€"/g, '"'],     // UTF-8 misinterpretation of right quote (variant)
+                [/â€"/g, '"'],     // Another variant
+                [/â€"/g, '"'],     // Another variant
+                
+                // More comprehensive patterns for apostrophes
+                // Handle "donâ't" → "don't" (the â is part of the UTF-8 misinterpretation)
+                // These patterns catch various misinterpretations of Windows-1252 apostrophe (0x92)
+                [/donâ't/g, "don't"],     // Specific case: "don't"
+                [/(\w+)â't/g, "$1't"],   // General pattern: word + â't → word + 't (e.g., "canâ't" → "can't")
+                [/(\w+)â€™/g, "$1'"],    // General pattern: word + â€™ → word + ' (e.g., "wonâ€™t" → "won't")
+                [/(\w+)â€"/g, '$1"'],    // General pattern for quotes
+                // Handle cases where â is followed by other characters that form the misinterpreted apostrophe
+                [/(\w+)â([^a-zA-Z0-9\s])t/g, "$1$2t"],  // word + â + char + t → word + char + t
+                // More aggressive: any word followed by â and then 't
+                [/([a-zA-Z]+)â't/g, "$1't"],
+                
+                // Handle standalone misinterpreted sequences
+                [/â€™/g, "'"],      // Standalone misinterpreted apostrophe
+                [/â€œ/g, '"'],      // Standalone misinterpreted left quote
+                [/â€"/g, '"'],      // Standalone misinterpreted right quote
+                
+                // Fix other common Windows-1252 characters misinterpreted as UTF-8
+                [/â€"/g, '—'],      // Em dash
+                [/â€"/g, '–'],      // En dash
+                [/â€¦/g, '...'],    // Ellipsis
+                [/â€"/g, '€'],      // Euro symbol
+                [/â„¢/g, '™'],      // Trademark
+                [/â€"/g, '…'],      // Horizontal ellipsis (another variant)
+                
                 // Dashes
                 [/\u2013/g, '-'],  // En dash → hyphen
                 [/\u2014/g, '--'], // Em dash → double hyphen
+                
                 // Other common issues
                 [/\u2026/g, '...'], // Horizontal ellipsis → three dots
                 [/\u00A0/g, ' '],  // Non-breaking space → regular space
-                // Fix trademark and other symbols that might appear incorrectly
-                [/\u2122/g, '™'],  // Keep trademark if it's correct, but fix if it's part of a sequence
             ];
             
             let fixed = text;
+            
+            // Apply fixes in order
             fixes.forEach(([pattern, replacement]) => {
                 fixed = fixed.replace(pattern, replacement);
+            });
+            
+            // Additional pass: fix any remaining "â" followed by common patterns
+            // This catches cases where the encoding wasn't detected correctly
+            fixed = fixed.replace(/â([€™€"–—…™])/g, (match, char) => {
+                const map = {
+                    '€™': "'",
+                    '€': '€',
+                    '"': '"',
+                    '–': '-',
+                    '—': '--',
+                    '…': '...',
+                    '™': '™'
+                };
+                return map[char] || match;
+            });
+            
+            // Final aggressive pass: fix "wordâ't" → "word't" patterns
+            // This handles cases like "donâ't" → "don't"
+            // The pattern matches: word character(s) + "â" + any character + "t"
+            fixed = fixed.replace(/(\w+)â([^a-zA-Z0-9])t/g, "$1$2t");
+            // More specific: "wordâ't" → "word't"
+            fixed = fixed.replace(/(\w+)â't/g, "$1't");
+            // Even more specific: "wordâ€™" → "word'"
+            fixed = fixed.replace(/(\w+)â€™/g, "$1'");
+            
+            // Fix standalone "â" that might be part of misinterpreted sequences
+            // Only if it's followed by characters that suggest it's an encoding error
+            fixed = fixed.replace(/â([€™‚ƒ„…†‡ˆ‰Š‹ŒŽ])/g, (match, char) => {
+                // These are common Windows-1252 characters that get misinterpreted
+                const charMap = {
+                    '€™': "'",  // Apostrophe
+                    '€': '€',   // Euro
+                    '"': '"',   // Quote
+                    '‚': ',',   // Single low-9 quotation mark
+                    'ƒ': 'f',   // Latin small f with hook
+                    '„': '"',   // Double low-9 quotation mark
+                    '…': '...', // Horizontal ellipsis
+                    '†': '+',   // Dagger
+                    '‡': '++',  // Double dagger
+                    'ˆ': '^',   // Modifier letter circumflex accent
+                    '‰': '%',   // Per mille sign
+                    'Š': 'S',   // Latin capital S with caron
+                    '‹': '<',   // Single left-pointing angle quotation mark
+                    'Œ': 'OE',  // Latin capital ligature OE
+                    'Ž': 'Z',   // Latin capital Z with caron
+                };
+                return charMap[char] || match;
             });
             
             return fixed;
