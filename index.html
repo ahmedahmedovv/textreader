@@ -1,8 +1,9 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
     <title>The Little Prince</title>
     <!-- Primer CSS -->
     <link href="https://unpkg.com/@primer/css@^20.0.0/dist/primer.css" rel="stylesheet" />
@@ -19,7 +20,7 @@
         }
         
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans', Helvetica, Arial, sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Apple Color Emoji', 'Noto Color Emoji', 'Noto Sans', 'Noto Sans CJK SC', 'Noto Sans CJK TC', 'Noto Sans CJK JP', 'Noto Sans CJK KR', 'Noto Sans Arabic', 'Noto Sans Devanagari', 'Noto Sans Hebrew', 'Noto Sans Thai', 'Helvetica Neue', Helvetica, Arial, 'Hiragino Sans GB', 'Microsoft YaHei', 'WenQuanYi Micro Hei', sans-serif;
             padding: 16px;
             background-color: #f6f8fa;
             -webkit-text-size-adjust: 100%;
@@ -29,6 +30,7 @@
         #content {
             white-space: pre-wrap;
             word-wrap: break-word;
+            overflow-wrap: break-word;
             font-size: 16px;
             line-height: 1.5;
             background: #ffffff;
@@ -36,6 +38,23 @@
             border-radius: 6px;
             border: 1px solid #d0d7de;
             box-shadow: 0 1px 3px rgba(27, 31, 35, 0.12);
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Apple Color Emoji', 'Noto Color Emoji', 'Noto Sans', 'Noto Sans CJK SC', 'Noto Sans CJK TC', 'Noto Sans CJK JP', 'Noto Sans CJK KR', 'Noto Sans Arabic', 'Noto Sans Devanagari', 'Noto Sans Hebrew', 'Noto Sans Thai', 'Helvetica Neue', Helvetica, Arial, 'Hiragino Sans GB', 'Microsoft YaHei', 'WenQuanYi Micro Hei', sans-serif;
+            unicode-bidi: embed;
+            text-rendering: optimizeLegibility;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+        
+        /* Support for right-to-left languages */
+        #content[dir="rtl"] {
+            direction: rtl;
+            text-align: right;
+        }
+        
+        /* Ensure proper rendering of international characters */
+        .word {
+            font-variant-ligatures: common-ligatures;
+            text-rendering: optimizeLegibility;
         }
         
         #content.hello-world {
@@ -1012,8 +1031,12 @@
                             text = e.target.result;
                             resolve();
                         };
-                        reader.onerror = reject;
-                        reader.readAsText(file);
+                        reader.onerror = function(error) {
+                            console.error('FileReader error:', error);
+                            reject(new Error('Failed to read file. Please ensure the file is a valid text file with UTF-8 encoding.'));
+                        };
+                        // Explicitly specify UTF-8 encoding for international characters
+                        reader.readAsText(file, 'UTF-8');
                     });
                 } catch (error) {
                     document.body.removeChild(loadingMsg);
@@ -1089,8 +1112,23 @@
             event.target.value = '';
         }
         
+        // Detect if text contains RTL (Right-to-Left) characters
+        function detectTextDirection(text) {
+            // RTL Unicode ranges: Arabic, Hebrew, Persian, Urdu, etc.
+            const rtlPattern = /[\u0590-\u05FF\u0600-\u06FF\u0700-\u074F\u0750-\u077F\u08A0-\u08FF\uFB50-\uFDFF\uFE70-\uFEFF]/;
+            // Check first 1000 characters for performance
+            const sample = text.substring(0, Math.min(1000, text.length));
+            return rtlPattern.test(sample) ? 'rtl' : 'ltr';
+        }
+        
         function loadText(text) {
             originalText = text;
+            
+            // Detect and set text direction for international support
+            const textDirection = detectTextDirection(text);
+            const contentDiv = document.getElementById('content');
+            contentDiv.setAttribute('dir', textDirection);
+            
             pages = splitIntoPages(text);
             if (pages.length > 1) {
                 document.getElementById('pagination').style.display = 'flex';
@@ -1109,7 +1147,8 @@
                 return;
             }
             
-            const blob = new Blob([originalText], { type: 'text/plain' });
+            // Create blob with UTF-8 encoding for international characters
+            const blob = new Blob([originalText], { type: 'text/plain;charset=utf-8' });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;

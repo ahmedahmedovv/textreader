@@ -51,8 +51,20 @@ A modern, mobile-friendly web application for reading text documents with intera
 
 ## Supported File Formats
 
-- **Text Files** (`.txt`): Plain text files
+- **Text Files** (`.txt`): Plain text files (UTF-8 encoding)
 - **PDF Files** (`.pdf`): PDF documents with formatting preservation
+
+### International Character Support
+
+The app fully supports international characters and languages:
+- ✅ **European languages**: Accented characters (é, ñ, ü, etc.)
+- ✅ **Asian languages**: Chinese (Simplified & Traditional), Japanese, Korean
+- ✅ **Middle Eastern languages**: Arabic, Hebrew, Persian
+- ✅ **South Asian languages**: Hindi, Thai, and more
+- ✅ **Emoji support**: Full emoji rendering
+- ✅ **RTL (Right-to-Left)**: Automatic text direction detection for Arabic, Hebrew, etc.
+
+**Note**: Text files should be saved with UTF-8 encoding for best results. The app automatically detects and handles RTL languages.
 
 ### File Size Limits
 
