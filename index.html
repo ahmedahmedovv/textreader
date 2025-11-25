@@ -39,15 +39,25 @@
         }
         
         #content.hello-world {
-            display: flex;
-            align-items: center;
-            justify-content: center;
             min-height: 70vh;
-            font-size: 72px;
-            font-weight: 600;
-            text-align: center;
-            color: #0969da;
+            font-size: 18px;
+            font-weight: 400;
+            line-height: 1.8;
+            text-align: left;
+            color: #24292f;
             padding: 40px;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        
+        #content.hello-world .word {
+            color: #0969da;
+            transition: all 0.2s;
+        }
+        
+        #content.hello-world .word:hover {
+            background-color: rgba(9, 105, 218, 0.1);
+            border-radius: 3px;
         }
         
         .word {
@@ -688,17 +698,19 @@
             }
             
             #content.hello-world {
-                font-size: 48px;
+                font-size: 16px;
                 min-height: 60vh;
-                padding: 30px;
+                padding: 20px;
+                line-height: 1.7;
             }
         }
         
         @media (max-width: 480px) {
             #content.hello-world {
-                font-size: 36px;
+                font-size: 15px;
                 min-height: 50vh;
-                padding: 20px;
+                padding: 16px;
+                line-height: 1.6;
             }
             
             #prompt-modal {
@@ -1033,8 +1045,9 @@
             const contentDiv = document.getElementById('content');
             const pageContent = pages[currentPage].trim();
             
-            // Check if it's "Hello World" and apply special styling
-            if (originalText.trim() === 'Hello World' && pageContent === 'Hello World') {
+            // Check if it's the welcome message and apply special styling
+            const isWelcomeMessage = originalText.trim().startsWith('👋 Welcome to Text Reader!');
+            if (isWelcomeMessage && pageContent.startsWith('👋 Welcome to Text Reader!')) {
                 contentDiv.classList.add('hello-world');
                 contentDiv.innerHTML = makeWordsClickable(pageContent);
             } else {
@@ -1155,8 +1168,38 @@
             // Load imported text
             loadText(importedText);
         } else {
-            // Show default "Hello World" text
-            const helloWorldText = 'Hello World';
+            // Show default welcome text
+            const helloWorldText = `👋 Welcome to Text Reader! 📚
+
+🎉 Congratulations! You've discovered the most interactive reading experience since... well, ever!
+
+📖 What is this app?
+This is your personal reading companion that makes every word clickable and smart. Think of it as having a dictionary that lives inside your text, but way cooler! 🤓
+
+✨ Key Features:
+• 📝 Read any text file or PDF
+• 🖱️ Click any word to get instant AI-powered definitions
+• 📱 Works beautifully on your phone, tablet, or computer
+• 📑 Automatic pagination for those really long reads
+• 💾 Your reading position is saved automatically
+• ⚙️ Customize everything to your liking
+
+🚀 How to Get Started:
+
+1️⃣ Click the ⚙️ gear icon (top-right) to open Settings
+2️⃣ Choose "Import Text" to upload your own .txt or .pdf file
+3️⃣ Start reading! Click any word you're curious about
+4️⃣ Use the Previous/Next buttons at the bottom to navigate long texts
+
+💡 Pro Tips:
+• The settings button hides when you scroll down (so it doesn't distract you!)
+• Your current page is remembered even after refresh
+• You can customize the AI prompt in Settings → AI Prompt Settings
+• Export your text anytime to save it locally
+
+🎯 Ready to dive in? Import a file and start exploring! Every word is just a click away from revealing its secrets! 🔍✨
+
+Happy Reading! 📖💙`;
             originalText = helloWorldText;
             loadText(helloWorldText);
         }
