@@ -320,10 +320,155 @@
         
         #page-info {
             font-size: 14px;
-            color: #24292f;
+            color: #0969da;
             min-width: 120px;
             text-align: center;
             font-weight: 500;
+            cursor: pointer;
+            padding: 4px 8px;
+            border-radius: 4px;
+            transition: background-color 0.2s;
+            user-select: none;
+        }
+        
+        #page-info:hover {
+            background-color: #f3f4f6;
+        }
+        
+        #page-info:active {
+            background-color: #e1e4e8;
+        }
+        
+        /* Go to Page Modal */
+        #goto-page-modal {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) scale(0.95);
+            background: #ffffff;
+            border: 1px solid #d0d7de;
+            border-radius: 12px;
+            box-shadow: 0 8px 24px rgba(140, 149, 159, 0.2);
+            padding: 24px;
+            max-width: 400px;
+            width: 90%;
+            z-index: 1001;
+            display: none;
+            opacity: 0;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        
+        #goto-page-modal.show {
+            display: block;
+            opacity: 1;
+            transform: translate(-50%, -50%) scale(1);
+        }
+        
+        #goto-page-modal-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 16px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid #d0d7de;
+        }
+        
+        #goto-page-modal-header h3 {
+            margin: 0;
+            font-size: 18px;
+            font-weight: 600;
+            color: #24292f;
+        }
+        
+        #goto-page-modal .close {
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            border-radius: 6px;
+            border: none;
+            background: transparent;
+            color: #656d76;
+            font-size: 20px;
+            line-height: 1;
+            padding: 0;
+            transition: all 0.2s;
+        }
+        
+        #goto-page-modal .close:hover {
+            background: #f3f4f6;
+            color: #24292f;
+        }
+        
+        #goto-page-label {
+            display: block;
+            font-size: 14px;
+            font-weight: 500;
+            color: #24292f;
+            margin-bottom: 8px;
+        }
+        
+        #goto-page-input {
+            width: 100%;
+            padding: 8px 12px;
+            font-size: 16px;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans', Helvetica, Arial, sans-serif;
+            border: 1px solid #d0d7de;
+            border-radius: 6px;
+            color: #24292f;
+            box-sizing: border-box;
+        }
+        
+        #goto-page-input:focus {
+            outline: none;
+            border-color: #0969da;
+            box-shadow: 0 0 0 3px rgba(9, 105, 218, 0.1);
+        }
+        
+        #goto-page-hint {
+            font-size: 12px;
+            color: #656d76;
+            margin-top: 8px;
+        }
+        
+        #goto-page-actions {
+            display: flex;
+            gap: 8px;
+            justify-content: flex-end;
+            margin-top: 16px;
+        }
+        
+        .goto-page-btn {
+            padding: 6px 16px;
+            font-size: 14px;
+            font-weight: 500;
+            border-radius: 6px;
+            border: 1px solid;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .goto-page-btn.primary {
+            background: #0969da;
+            color: #ffffff;
+            border-color: #0969da;
+        }
+        
+        .goto-page-btn.primary:hover {
+            background: #0860ca;
+            border-color: #0860ca;
+        }
+        
+        .goto-page-btn.secondary {
+            background: #f6f8fa;
+            color: #24292f;
+            border-color: #d0d7de;
+        }
+        
+        .goto-page-btn.secondary:hover {
+            background: #f3f4f6;
         }
         
         /* Settings Menu styles */
@@ -745,6 +890,20 @@
                 min-height: 80px;
                 font-size: 14px;
             }
+            
+            #goto-page-modal {
+                padding: 16px;
+                max-width: 95%;
+            }
+            
+            #goto-page-modal-header h3 {
+                font-size: 16px;
+            }
+            
+            #goto-page-input {
+                font-size: 16px; /* Prevents zoom on iOS */
+                padding: 10px 12px;
+            }
         }
     </style>
 </head>
@@ -758,7 +917,7 @@
     </div>
     
     <button id="settings-btn" onclick="toggleSettingsMenu()" title="Settings">⚙️</button>
-    <div id="menu-overlay" onclick="closeSettingsMenu(); closePromptSettings();"></div>
+    <div id="menu-overlay" onclick="closeSettingsMenu(); closePromptSettings(); closeGotoPageModal();"></div>
     <div id="settings-menu">
         <input type="file" id="file-input" accept=".txt,.pdf" onchange="importFile(event)">
         <button class="menu-item import" onclick="document.getElementById('file-input').click(); closeSettingsMenu();">
@@ -798,8 +957,23 @@
     <pre id="content">Loading...</pre>
     <div id="pagination" style="display: none;">
         <button class="pagination-btn" id="prev-btn" onclick="previousPage()">Previous</button>
-        <span id="page-info">Page 1 of 1</span>
+        <span id="page-info" onclick="openGotoPageModal()" title="Click to go to a specific page">Page 1 of 1</span>
         <button class="pagination-btn" id="next-btn" onclick="nextPage()">Next</button>
+    </div>
+    
+    <!-- Go to Page Modal -->
+    <div id="goto-page-modal">
+        <div id="goto-page-modal-header">
+            <h3>Go to Page</h3>
+            <button class="close" onclick="closeGotoPageModal()" aria-label="Close">×</button>
+        </div>
+        <label for="goto-page-input" id="goto-page-label">Enter page number:</label>
+        <input type="number" id="goto-page-input" min="1" placeholder="Page number" autofocus>
+        <div id="goto-page-hint"></div>
+        <div id="goto-page-actions">
+            <button class="goto-page-btn secondary" onclick="closeGotoPageModal()">Cancel</button>
+            <button class="goto-page-btn primary" onclick="goToPageNumber()">Go</button>
+        </div>
     </div>
     
     <script>
@@ -1345,6 +1519,67 @@
                 displayPage(currentPage + 1);
             }
         }
+        
+        function openGotoPageModal() {
+            if (!pages || pages.length === 0) return;
+            
+            const modal = document.getElementById('goto-page-modal');
+            const input = document.getElementById('goto-page-input');
+            const hint = document.getElementById('goto-page-hint');
+            
+            // Set max value and hint
+            input.max = pages.length;
+            input.value = currentPage + 1;
+            hint.textContent = `Enter a page number between 1 and ${pages.length}`;
+            
+            modal.classList.add('show');
+            document.getElementById('menu-overlay').classList.add('show');
+            
+            // Focus and select the input
+            setTimeout(() => {
+                input.focus();
+                input.select();
+            }, 100);
+        }
+        
+        function closeGotoPageModal() {
+            document.getElementById('goto-page-modal').classList.remove('show');
+            document.getElementById('menu-overlay').classList.remove('show');
+        }
+        
+        function goToPageNumber() {
+            const input = document.getElementById('goto-page-input');
+            const pageNum = parseInt(input.value);
+            
+            if (isNaN(pageNum) || pageNum < 1 || pageNum > pages.length) {
+                input.style.borderColor = '#d1242f';
+                input.focus();
+                return;
+            }
+            
+            // Go to the page (pageNum is 1-based, displayPage expects 0-based)
+            displayPage(pageNum - 1);
+            closeGotoPageModal();
+        }
+        
+        // Allow Enter key to submit in the input (initialize after DOM is ready)
+        function initGotoPageInput() {
+            const gotoInput = document.getElementById('goto-page-input');
+            if (gotoInput) {
+                gotoInput.addEventListener('keypress', function(e) {
+                    if (e.key === 'Enter') {
+                        goToPageNumber();
+                    }
+                });
+            }
+        }
+        
+        // Initialize when page loads
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initGotoPageInput);
+        } else {
+            initGotoPageInput();
+        }
 
         async function getDefinition(word) {
             // Clean the word (remove punctuation)
@@ -1454,7 +1689,7 @@ This is your personal reading companion that makes every word clickable and smar
 • 📝 Read any text file or PDF
 • 🖱️ Click any word to get instant AI-powered definitions
 • 📱 Works beautifully on your phone, tablet, or computer
-• 📑 Automatic pagination for those really long reads
+• 📑 Automatic pagination with quick page navigation
 • 💾 Your reading position is saved automatically
 • ⚙️ Customize everything to your liking
 
@@ -1464,6 +1699,7 @@ This is your personal reading companion that makes every word clickable and smar
 2️⃣ Choose "Import Text" to upload your own .txt or .pdf file
 3️⃣ Start reading! Click any word you're curious about
 4️⃣ Use the Previous/Next buttons at the bottom to navigate long texts
+5️⃣ Click the page number (e.g., "Page 1 of 10") to jump to any page
 
 💡 Pro Tips:
 • The settings button hides when you scroll down (so it doesn't distract you!)
