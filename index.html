@@ -849,12 +849,64 @@
             localStorage.removeItem('customPrompt');
         }
 
+        // Helper function to format file size
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+        }
+        
+        // Check localStorage quota
+        function checkLocalStorageQuota() {
+            try {
+                const test = 'test';
+                localStorage.setItem(test, test);
+                localStorage.removeItem(test);
+                return true;
+            } catch (e) {
+                return false;
+            }
+        }
+        
+        // Estimate localStorage usage
+        function estimateLocalStorageUsage(text) {
+            // Rough estimate: each character is ~1-2 bytes, plus localStorage overhead
+            return new Blob([text]).size;
+        }
+        
         async function importFile(event) {
             const file = event.target.files[0];
             if (!file) return;
             
+            // Check file size (warn if > 5MB)
+            const MAX_RECOMMENDED_SIZE = 5 * 1024 * 1024; // 5MB
+            const MAX_SIZE = 10 * 1024 * 1024; // 10MB hard limit
+            
+            if (file.size > MAX_SIZE) {
+                alert(`File is too large (${formatFileSize(file.size)}). Maximum file size is ${formatFileSize(MAX_SIZE)}. Please use a smaller file.`);
+                event.target.value = '';
+                return;
+            }
+            
+            if (file.size > MAX_RECOMMENDED_SIZE) {
+                const proceed = confirm(`Warning: This file is large (${formatFileSize(file.size)}). Large files may take longer to process and could exceed browser storage limits. Continue anyway?`);
+                if (!proceed) {
+                    event.target.value = '';
+                    return;
+                }
+            }
+            
             const fileName = file.name.toLowerCase();
             const isPDF = fileName.endsWith('.pdf');
+            
+            // Show loading indicator
+            const loadingMsg = document.createElement('div');
+            loadingMsg.id = 'import-loading';
+            loadingMsg.style.cssText = 'position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: #ffffff; padding: 20px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.3); z-index: 10000; text-align: center;';
+            loadingMsg.innerHTML = `<div style="margin-bottom: 10px;">📄 Processing file...</div><div style="font-size: 12px; color: #656d76;">${formatFileSize(file.size)}</div>`;
+            document.body.appendChild(loadingMsg);
             
             let text = '';
             
@@ -946,27 +998,68 @@
                     
                     text = fullText.trim();
                 } catch (error) {
+                    document.body.removeChild(loadingMsg);
                     alert('Error reading PDF file: ' + error.message);
                     event.target.value = '';
                     return;
                 }
             } else {
                 // Handle text file
-                const reader = new FileReader();
-                await new Promise((resolve, reject) => {
-                    reader.onload = function(e) {
-                        text = e.target.result;
-                        resolve();
-                    };
-                    reader.onerror = reject;
-                    reader.readAsText(file);
-                });
+                try {
+                    const reader = new FileReader();
+                    await new Promise((resolve, reject) => {
+                        reader.onload = function(e) {
+                            text = e.target.result;
+                            resolve();
+                        };
+                        reader.onerror = reject;
+                        reader.readAsText(file);
+                    });
+                } catch (error) {
+                    document.body.removeChild(loadingMsg);
+                    alert('Error reading text file: ' + error.message);
+                    event.target.value = '';
+                    return;
+                }
+            }
+            
+            // Check text size before saving
+            const textSize = estimateLocalStorageUsage(text);
+            const estimatedSizeMB = textSize / (1024 * 1024);
+            
+            if (estimatedSizeMB > 8) {
+                document.body.removeChild(loadingMsg);
+                const proceed = confirm(`Warning: The extracted text is very large (approximately ${formatFileSize(textSize)}). This may exceed browser storage limits and cause the import to fail. Continue anyway?`);
+                if (!proceed) {
+                    event.target.value = '';
+                    return;
+                }
             }
             
             // Process the extracted text
             originalText = text;
-            // Save imported text to localStorage
-            localStorage.setItem('importedText', text);
+            
+            // Save imported text to localStorage with error handling
+            try {
+                // Check if we can write to localStorage
+                if (!checkLocalStorageQuota()) {
+                    throw new Error('Browser storage is full or unavailable');
+                }
+                
+                localStorage.setItem('importedText', text);
+            } catch (error) {
+                document.body.removeChild(loadingMsg);
+                
+                // Check if it's a quota exceeded error
+                if (error.name === 'QuotaExceededError' || error.message.includes('quota') || error.message.includes('full')) {
+                    alert(`Storage limit exceeded! The file is too large (${formatFileSize(textSize)}) to save in browser storage.\n\nMaximum recommended size: ~5MB\n\nTry:\n- Using a smaller file\n- Splitting the file into parts\n- Using a different browser`);
+                } else {
+                    alert('Error saving file: ' + error.message);
+                }
+                event.target.value = '';
+                return;
+            }
+            
             pages = splitIntoPages(text);
             if (pages.length > 1) {
                 document.getElementById('pagination').style.display = 'flex';
@@ -977,6 +1070,20 @@
             currentPage = 0;
             localStorage.setItem('currentPage', 0);
             displayPage(0);
+            
+            // Remove loading indicator
+            document.body.removeChild(loadingMsg);
+            
+            // Show success message
+            const successMsg = document.createElement('div');
+            successMsg.style.cssText = 'position: fixed; top: 20px; left: 50%; transform: translateX(-50%); background: #2da44e; color: white; padding: 12px 20px; border-radius: 6px; box-shadow: 0 2px 8px rgba(0,0,0,0.2); z-index: 10000; font-size: 14px;';
+            successMsg.textContent = `✓ File imported successfully (${formatFileSize(textSize)})`;
+            document.body.appendChild(successMsg);
+            setTimeout(() => {
+                if (document.body.contains(successMsg)) {
+                    document.body.removeChild(successMsg);
+                }
+            }, 3000);
             
             // Reset file input so same file can be selected again
             event.target.value = '';
@@ -1162,11 +1269,30 @@
         });
 
         // Check if there's imported text in localStorage
-        const importedText = localStorage.getItem('importedText');
-        if (importedText) {
-            // Load imported text
-            loadText(importedText);
-        } else {
+        let showWelcome = true;
+        try {
+            const importedText = localStorage.getItem('importedText');
+            if (importedText) {
+                // Try to load imported text
+                try {
+                    loadText(importedText);
+                    showWelcome = false;
+                } catch (error) {
+                    console.error('Error loading text:', error);
+                    // Clear potentially corrupted data
+                    try {
+                        localStorage.removeItem('importedText');
+                    } catch (e) {
+                        // Ignore errors when clearing
+                    }
+                }
+            }
+        } catch (error) {
+            console.error('Error accessing localStorage:', error);
+        }
+        
+        if (showWelcome) {
+            // Show default welcome text
             // Show default welcome text
             const helloWorldText = `👋 Welcome to Text Reader! 📚
 

@@ -54,6 +54,17 @@ A modern, mobile-friendly web application for reading text documents with intera
 - **Text Files** (`.txt`): Plain text files
 - **PDF Files** (`.pdf`): PDF documents with formatting preservation
 
+### File Size Limits
+
+- **Maximum file size**: 10MB (hard limit)
+- **Recommended size**: Up to 5MB for best performance
+- **Browser storage limit**: ~5-10MB (varies by browser)
+
+**Note**: Large files may take longer to process. If you encounter storage errors, try:
+- Using smaller files
+- Splitting large documents into parts
+- Clearing browser storage and trying again
+
 ## Technical Details
 
 - **Frontend**: Pure HTML, CSS, and JavaScript
