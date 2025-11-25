@@ -1,0 +1,1206 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>The Little Prince</title>
+    <!-- Primer CSS -->
+    <link href="https://unpkg.com/@primer/css@^20.0.0/dist/primer.css" rel="stylesheet" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
+    <script>
+        // Configure PDF.js worker
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
+    </script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans', Helvetica, Arial, sans-serif;
+            padding: 16px;
+            background-color: #f6f8fa;
+            -webkit-text-size-adjust: 100%;
+            color: #24292f;
+        }
+        
+        #content {
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            font-size: 16px;
+            line-height: 1.5;
+            background: #ffffff;
+            padding: 16px;
+            border-radius: 6px;
+            border: 1px solid #d0d7de;
+            box-shadow: 0 1px 3px rgba(27, 31, 35, 0.12);
+        }
+        
+        #content.hello-world {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 70vh;
+            font-size: 72px;
+            font-weight: 600;
+            text-align: center;
+            color: #0969da;
+            padding: 40px;
+        }
+        
+        .word {
+            cursor: pointer;
+            padding: 1px 1px;
+            border-radius: 3px;
+            transition: background-color 0.2s;
+            -webkit-tap-highlight-color: rgba(255, 255, 0, 0.3);
+            touch-action: manipulation;
+        }
+        
+        .word:active {
+            background-color: #fffb00;
+        }
+        
+        .word:hover {
+            background-color: #fff8b1;
+        }
+        
+        #definition {
+            position: fixed;
+            top: 16px;
+            left: 50%;
+            transform: translateX(-50%) translateY(-100px);
+            background: #ffffff;
+            border: 1px solid #d0d7de;
+            box-shadow: 0 8px 24px rgba(140, 149, 159, 0.2);
+            display: none;
+            z-index: 1000;
+            border-radius: 12px;
+            max-width: 500px;
+            width: 90%;
+            max-height: 70vh;
+            overflow: hidden;
+            -webkit-overflow-scrolling: touch;
+            opacity: 0;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        
+        #definition.show {
+            display: block;
+            opacity: 1;
+            transform: translateX(-50%) translateY(0);
+        }
+        
+        #definition.hidden {
+            opacity: 0;
+            transform: translateX(-50%) translateY(-100px);
+            pointer-events: none;
+        }
+        
+        #definition-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 16px 20px;
+            border-bottom: 1px solid #d0d7de;
+            background: #f6f8fa;
+        }
+        
+        #definition-word {
+            font-size: 18px;
+            font-weight: 600;
+            color: #0969da;
+            margin: 0;
+        }
+        
+        #definition .close {
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            border-radius: 6px;
+            border: none;
+            background: transparent;
+            color: #656d76;
+            font-size: 20px;
+            line-height: 1;
+            padding: 0;
+            -webkit-tap-highlight-color: rgba(0,0,0,0.1);
+            touch-action: manipulation;
+            transition: all 0.2s;
+        }
+        
+        #definition .close:hover {
+            background: #f3f4f6;
+            color: #24292f;
+        }
+        
+        #definition .close:active {
+            background: #eaeef2;
+            color: #0969da;
+        }
+        
+        #definition-content {
+            padding: 20px;
+            font-size: 15px;
+            line-height: 1.6;
+            color: #24292f;
+            overflow-y: auto;
+            max-height: calc(70vh - 80px);
+        }
+        
+        #definition-content.loading {
+            color: #656d76;
+            font-style: italic;
+        }
+        
+        /* Mobile styles */
+        @media (max-width: 768px) {
+            body {
+                padding: 5px;
+            }
+            
+            #content {
+                font-size: 18px;
+                padding: 12px;
+                line-height: 1;
+            }
+            
+            .word {
+                padding: 1px 1px;
+                min-height: 30px;
+                display: inline-block;
+            }
+            
+            #definition {
+                top: 10px;
+                left: 10px;
+                right: 10px;
+                transform: translateX(0) translateY(-100px);
+                max-width: none;
+                width: auto;
+                max-height: 60vh;
+                border-radius: 12px;
+            }
+            
+            #definition.show {
+                transform: translateX(0) translateY(0);
+            }
+            
+            #definition.hidden {
+                transform: translateX(0) translateY(-100px);
+            }
+            
+            #definition-header {
+                padding: 14px 16px;
+            }
+            
+            #definition-word {
+                font-size: 16px;
+            }
+            
+            #definition .close {
+                width: 36px;
+                height: 36px;
+                font-size: 22px;
+            }
+            
+            #definition-content {
+                font-size: 15px;
+                padding: 16px;
+                max-height: calc(70vh - 70px);
+            }
+        }
+        
+        /* Very small screens */
+        @media (max-width: 480px) {
+            #content {
+                font-size: 16px;
+                padding: 10px;
+            }
+            
+            .word {
+                padding: 3px 5px;
+            }
+            
+            #definition {
+                padding: 45px 15px 15px 15px;
+            }
+            
+            #definition-content {
+                font-size: 16px;
+            }
+        }
+        
+        /* Prevent text selection on word tap */
+        .word {
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+            user-select: none;
+        }
+        
+        /* Pagination styles */
+        #pagination {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 12px;
+            margin: 16px 0 8px 0;
+            padding: 16px;
+            background: #ffffff;
+            border-radius: 6px;
+            border: 1px solid #d0d7de;
+            box-shadow: 0 1px 3px rgba(27, 31, 35, 0.12);
+        }
+        
+        .pagination-btn {
+            padding: 5px 16px;
+            font-size: 14px;
+            font-weight: 500;
+            background: #0969da;
+            color: #ffffff;
+            border: 1px solid #0969da;
+            border-radius: 6px;
+            cursor: pointer;
+            -webkit-tap-highlight-color: rgba(0,0,0,0.1);
+            touch-action: manipulation;
+            transition: background-color 0.2s, border-color 0.2s;
+        }
+        
+        .pagination-btn:hover {
+            background: #0860ca;
+            border-color: #0860ca;
+        }
+        
+        .pagination-btn:active {
+            background: #0550ae;
+            border-color: #0550ae;
+        }
+        
+        .pagination-btn:disabled {
+            background: #f6f8fa;
+            color: #8c959f;
+            border-color: #d0d7de;
+            cursor: not-allowed;
+        }
+        
+        #page-info {
+            font-size: 14px;
+            color: #24292f;
+            min-width: 120px;
+            text-align: center;
+            font-weight: 500;
+        }
+        
+        /* Settings Menu styles */
+        #settings-btn {
+            position: fixed;
+            top: 16px;
+            right: 16px;
+            width: 48px;
+            height: 48px;
+            background: #0969da;
+            color: #ffffff;
+            border: 1px solid #0969da;
+            border-radius: 50%;
+            font-size: 20px;
+            cursor: pointer;
+            box-shadow: 0 1px 3px rgba(27, 31, 35, 0.12), 0 8px 24px rgba(140, 149, 159, 0.2);
+            z-index: 999;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            -webkit-tap-highlight-color: rgba(0,0,0,0.1);
+            touch-action: manipulation;
+            transition: all 0.2s ease;
+            opacity: 1;
+            transform: translateY(0);
+        }
+        
+        #settings-btn.hidden {
+            opacity: 0;
+            transform: translateY(-100px);
+            pointer-events: none;
+        }
+        
+        #settings-btn:hover {
+            background: #0860ca;
+            border-color: #0860ca;
+            transform: translateY(0) scale(1.05);
+        }
+        
+        #settings-btn.hidden:hover {
+            transform: translateY(-100px) scale(1);
+        }
+        
+        #settings-btn:active {
+            transform: translateY(0) scale(0.95);
+            background: #0550ae;
+            border-color: #0550ae;
+        }
+        
+        #settings-menu {
+            position: fixed;
+            top: 72px;
+            right: 16px;
+            background: #ffffff;
+            border-radius: 6px;
+            border: 1px solid #d0d7de;
+            box-shadow: 0 8px 24px rgba(140, 149, 159, 0.2);
+            padding: 8px;
+            min-width: 280px;
+            max-width: 320px;
+            z-index: 998;
+            display: none;
+            flex-direction: column;
+            gap: 4px;
+            opacity: 0;
+            transform: translateY(-8px) scale(0.98);
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        
+        #settings-menu.show {
+            display: flex;
+            opacity: 1;
+            transform: translateY(0) scale(1);
+        }
+        
+        .menu-item {
+            padding: 10px 16px;
+            font-size: 14px;
+            font-weight: 500;
+            border: 1px solid transparent;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            text-align: left;
+            -webkit-tap-highlight-color: rgba(0,0,0,0.1);
+            touch-action: manipulation;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            position: relative;
+        }
+        
+        .menu-item:hover {
+            background-color: #f6f8fa;
+        }
+        
+        .menu-item:active {
+            background-color: #f3f4f6;
+        }
+        
+        .menu-item.import {
+            background-color: #1a7f37;
+            color: #ffffff;
+            border-color: #1a7f37;
+        }
+        
+        .menu-item.import:hover {
+            background-color: #2da44e;
+            border-color: #2da44e;
+        }
+        
+        .menu-item.import:active {
+            background-color: #1a7f37;
+            border-color: #1a7f37;
+        }
+        
+        .menu-item.export {
+            background-color: #0969da;
+            color: #ffffff;
+            border-color: #0969da;
+        }
+        
+        .menu-item.export:hover {
+            background-color: #0860ca;
+            border-color: #0860ca;
+        }
+        
+        .menu-item.export:active {
+            background-color: #0550ae;
+            border-color: #0550ae;
+        }
+        
+        .menu-item.reset {
+            background-color: #cf222e;
+            color: #ffffff;
+            border-color: #cf222e;
+        }
+        
+        .menu-item.reset:hover {
+            background-color: #d1242f;
+            border-color: #d1242f;
+        }
+        
+        .menu-item.reset:active {
+            background-color: #a40e26;
+            border-color: #a40e26;
+        }
+        
+        .menu-item-icon {
+            font-size: 22px;
+            width: 28px;
+            text-align: center;
+            filter: drop-shadow(0 1px 2px rgba(0,0,0,0.1));
+        }
+        
+        .menu-item span:last-child {
+            flex: 1;
+            letter-spacing: 0.3px;
+        }
+        
+        #file-input {
+            display: none;
+        }
+        
+        .menu-item.prompt {
+            background-color: #8250df;
+            color: #ffffff;
+            border-color: #8250df;
+        }
+        
+        .menu-item.prompt:hover {
+            background-color: #7c3aed;
+            border-color: #7c3aed;
+        }
+        
+        .menu-item.prompt:active {
+            background-color: #6f42c1;
+            border-color: #6f42c1;
+        }
+        
+        /* Prompt Settings Modal */
+        #prompt-modal {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) scale(0.95);
+            background: #ffffff;
+            border: 1px solid #d0d7de;
+            border-radius: 12px;
+            box-shadow: 0 8px 24px rgba(140, 149, 159, 0.2);
+            padding: 24px;
+            max-width: 600px;
+            width: 90%;
+            z-index: 1001;
+            display: none;
+            opacity: 0;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        
+        #prompt-modal.show {
+            display: block;
+            opacity: 1;
+            transform: translate(-50%, -50%) scale(1);
+        }
+        
+        #prompt-modal-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 16px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid #d0d7de;
+        }
+        
+        #prompt-modal-header h3 {
+            margin: 0;
+            font-size: 18px;
+            font-weight: 600;
+            color: #24292f;
+        }
+        
+        #prompt-modal .close {
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            border-radius: 6px;
+            border: none;
+            background: transparent;
+            color: #656d76;
+            font-size: 20px;
+            line-height: 1;
+            padding: 0;
+            transition: all 0.2s;
+        }
+        
+        #prompt-modal .close:hover {
+            background: #f3f4f6;
+            color: #24292f;
+        }
+        
+        #prompt-label {
+            display: block;
+            font-size: 14px;
+            font-weight: 500;
+            color: #24292f;
+            margin-bottom: 8px;
+        }
+        
+        #prompt-input {
+            width: 100%;
+            min-height: 100px;
+            padding: 12px;
+            font-size: 14px;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans', Helvetica, Arial, sans-serif;
+            border: 1px solid #d0d7de;
+            border-radius: 6px;
+            resize: vertical;
+            color: #24292f;
+            line-height: 1.5;
+            box-sizing: border-box;
+        }
+        
+        #prompt-input:focus {
+            outline: none;
+            border-color: #0969da;
+            box-shadow: 0 0 0 3px rgba(9, 105, 218, 0.1);
+        }
+        
+        #prompt-default {
+            font-size: 12px;
+            color: #656d76;
+            margin-top: 8px;
+            padding: 8px;
+            background: #f6f8fa;
+            border-radius: 6px;
+        }
+        
+        #prompt-default strong {
+            color: #24292f;
+        }
+        
+        #prompt-actions {
+            display: flex;
+            gap: 8px;
+            justify-content: flex-end;
+            margin-top: 16px;
+        }
+        
+        .prompt-btn {
+            padding: 6px 16px;
+            font-size: 14px;
+            font-weight: 500;
+            border-radius: 6px;
+            border: 1px solid;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .prompt-btn.primary {
+            background: #0969da;
+            color: #ffffff;
+            border-color: #0969da;
+        }
+        
+        .prompt-btn.primary:hover {
+            background: #0860ca;
+            border-color: #0860ca;
+        }
+        
+        .prompt-btn.secondary {
+            background: #f6f8fa;
+            color: #24292f;
+            border-color: #d0d7de;
+        }
+        
+        .prompt-btn.secondary:hover {
+            background: #f3f4f6;
+        }
+        
+        /* Overlay to close menu when clicking outside */
+        #menu-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(27, 31, 35, 0.5);
+            z-index: 997;
+            display: none;
+            opacity: 0;
+            transition: opacity 0.2s ease;
+            backdrop-filter: blur(2px);
+        }
+        
+        #menu-overlay.show {
+            display: block;
+            opacity: 1;
+        }
+        
+        @media (max-width: 768px) {
+            #pagination {
+                margin: 10px 0;
+                padding: 12px;
+                gap: 10px;
+            }
+            
+            .pagination-btn {
+                padding: 12px 18px;
+                font-size: 18px;
+            }
+            
+            #page-info {
+                font-size: 18px;
+            }
+            
+            #settings-btn {
+                width: 55px;
+                height: 55px;
+                font-size: 26px;
+                top: 10px;
+                right: 10px;
+            }
+            
+            #settings-menu {
+                top: 70px;
+                right: 10px;
+                left: 10px;
+                min-width: auto;
+                max-width: none;
+                padding: 8px;
+                border-radius: 6px;
+            }
+            
+            .menu-item {
+                padding: 12px 16px;
+                font-size: 16px;
+                border-radius: 6px;
+                gap: 12px;
+            }
+            
+            .menu-item-icon {
+                font-size: 20px;
+                width: 24px;
+            }
+            
+            #menu-overlay {
+                background: rgba(27, 31, 35, 0.6);
+            }
+            
+            #content.hello-world {
+                font-size: 48px;
+                min-height: 60vh;
+                padding: 30px;
+            }
+        }
+        
+        @media (max-width: 480px) {
+            #content.hello-world {
+                font-size: 36px;
+                min-height: 50vh;
+                padding: 20px;
+            }
+            
+            #prompt-modal {
+                padding: 16px;
+                max-width: 95%;
+            }
+            
+            #prompt-modal-header h3 {
+                font-size: 16px;
+            }
+            
+            #prompt-input {
+                min-height: 80px;
+                font-size: 14px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="definition">
+        <div id="definition-header">
+            <h3 id="definition-word"></h3>
+            <button class="close" onclick="closeDefinition()" aria-label="Close">×</button>
+        </div>
+        <div id="definition-content" class="loading">Loading definition...</div>
+    </div>
+    
+    <button id="settings-btn" onclick="toggleSettingsMenu()" title="Settings">⚙️</button>
+    <div id="menu-overlay" onclick="closeSettingsMenu(); closePromptSettings();"></div>
+    <div id="settings-menu">
+        <input type="file" id="file-input" accept=".txt,.pdf" onchange="importFile(event)">
+        <button class="menu-item import" onclick="document.getElementById('file-input').click(); closeSettingsMenu();">
+            <span class="menu-item-icon">📥</span>
+            <span>Import Text</span>
+        </button>
+        <button class="menu-item export" onclick="exportText(); closeSettingsMenu();">
+            <span class="menu-item-icon">📤</span>
+            <span>Export Text</span>
+        </button>
+        <button class="menu-item reset" onclick="resetToDefault(); closeSettingsMenu();">
+            <span class="menu-item-icon">🔄</span>
+            <span>Reset to Default</span>
+        </button>
+        <button class="menu-item prompt" onclick="openPromptSettings(); closeSettingsMenu();">
+            <span class="menu-item-icon">🤖</span>
+            <span>AI Prompt Settings</span>
+        </button>
+    </div>
+    
+    <!-- Prompt Settings Modal -->
+    <div id="prompt-modal">
+        <div id="prompt-modal-header">
+            <h3>AI Prompt Settings</h3>
+            <button class="close" onclick="closePromptSettings()" aria-label="Close">×</button>
+        </div>
+        <label for="prompt-input" id="prompt-label">Custom Prompt (use {word} as placeholder for the word):</label>
+        <textarea id="prompt-input" placeholder="Enter your custom prompt..."></textarea>
+        <div id="prompt-default">
+            <strong>Default prompt:</strong> Give me a brief English definition of the word: {word}
+        </div>
+        <div id="prompt-actions">
+            <button class="prompt-btn secondary" onclick="resetPrompt()">Reset to Default</button>
+            <button class="prompt-btn primary" onclick="savePrompt()">Save</button>
+        </div>
+    </div>
+    <pre id="content">Loading...</pre>
+    <div id="pagination" style="display: none;">
+        <button class="pagination-btn" id="prev-btn" onclick="previousPage()">Previous</button>
+        <span id="page-info">Page 1 of 1</span>
+        <button class="pagination-btn" id="next-btn" onclick="nextPage()">Next</button>
+    </div>
+    
+    <script>
+        const MISTRAL_API_KEY = 'UyFZtjZY3r5aNe1th2qtx6IBLynCc0ai';
+        const MISTRAL_API_URL = 'https://api.mistral.ai/v1/chat/completions';
+        
+        let pages = [];
+        let currentPage = 0;
+        let originalText = ''; // Store original text for export
+        const LINES_PER_PAGE = 50; // Adjust this to change page size
+
+        function toggleSettingsMenu() {
+            const menu = document.getElementById('settings-menu');
+            const overlay = document.getElementById('menu-overlay');
+            const isOpen = menu.classList.contains('show');
+            
+            if (isOpen) {
+                closeSettingsMenu();
+            } else {
+                menu.classList.add('show');
+                overlay.classList.add('show');
+            }
+        }
+        
+        function closeSettingsMenu() {
+            document.getElementById('settings-menu').classList.remove('show');
+            document.getElementById('menu-overlay').classList.remove('show');
+        }
+        
+        const DEFAULT_PROMPT = 'Give me a brief English definition of the word: {word}';
+        
+        function getPrompt() {
+            const savedPrompt = localStorage.getItem('customPrompt');
+            return savedPrompt || DEFAULT_PROMPT;
+        }
+        
+        function openPromptSettings() {
+            const modal = document.getElementById('prompt-modal');
+            const promptInput = document.getElementById('prompt-input');
+            const currentPrompt = getPrompt();
+            
+            promptInput.value = currentPrompt;
+            modal.classList.add('show');
+            document.getElementById('menu-overlay').classList.add('show');
+        }
+        
+        function closePromptSettings() {
+            document.getElementById('prompt-modal').classList.remove('show');
+            document.getElementById('menu-overlay').classList.remove('show');
+        }
+        
+        function savePrompt() {
+            const promptInput = document.getElementById('prompt-input');
+            const customPrompt = promptInput.value.trim();
+            
+            if (customPrompt) {
+                localStorage.setItem('customPrompt', customPrompt);
+                closePromptSettings();
+            } else {
+                alert('Please enter a prompt');
+            }
+        }
+        
+        function resetPrompt() {
+            document.getElementById('prompt-input').value = DEFAULT_PROMPT;
+            localStorage.removeItem('customPrompt');
+        }
+
+        async function importFile(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            
+            const fileName = file.name.toLowerCase();
+            const isPDF = fileName.endsWith('.pdf');
+            
+            let text = '';
+            
+            if (isPDF) {
+                // Handle PDF file with formatting preservation
+                try {
+                    const arrayBuffer = await file.arrayBuffer();
+                    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+                    const numPages = pdf.numPages;
+                    let fullText = '';
+                    
+                    // Extract text from all pages with formatting
+                    for (let pageNum = 1; pageNum <= numPages; pageNum++) {
+                        const page = await pdf.getPage(pageNum);
+                        const textContent = await page.getTextContent();
+                        
+                        // Group text items by Y position to preserve line structure
+                        const viewport = page.getViewport({ scale: 1.0 });
+                        const lines = [];
+                        const lineMap = new Map();
+                        
+                        textContent.items.forEach((item, index) => {
+                            const y = Math.round(item.transform[5]);
+                            
+                            if (!lineMap.has(y)) {
+                                lineMap.set(y, []);
+                            }
+                            lineMap.get(y).push({
+                                text: item.str,
+                                x: item.transform[4],
+                                width: item.width,
+                                height: item.height
+                            });
+                        });
+                        
+                        // Sort lines by Y position (top to bottom)
+                        const sortedLines = Array.from(lineMap.entries())
+                            .sort((a, b) => b[0] - a[0]); // Higher Y values first (PDF coordinates)
+                        
+                        let lastY = null;
+                        let lastLineHeight = null;
+                        sortedLines.forEach(([y, items]) => {
+                            const lineHeight = items[0] ? items[0].height : 12;
+                            
+                            // Check if this is a new paragraph (significant Y difference)
+                            if (lastY !== null) {
+                                const yDiff = lastY - y;
+                                const avgHeight = lastLineHeight ? (lastLineHeight + lineHeight) / 2 : lineHeight;
+                                
+                                // If Y difference is more than 1.5x the average line height, it's a paragraph break
+                                if (yDiff > avgHeight * 1.5) {
+                                    fullText += '\n';
+                                }
+                            }
+                            
+                            lastLineHeight = lineHeight;
+                            
+                            // Sort items in line by X position (left to right)
+                            items.sort((a, b) => a.x - b.x);
+                            
+                            // Build the line text with proper spacing
+                            let lineText = '';
+                            let lastXEnd = null;
+                            
+                            items.forEach((item, idx) => {
+                                // Calculate spacing between items
+                                if (lastXEnd !== null) {
+                                    const gap = item.x - lastXEnd;
+                                    // Add space if gap is significant (more than 20% of item width)
+                                    if (gap > item.width * 0.2) {
+                                        // Add multiple spaces for larger gaps (indentation)
+                                        const spaces = gap > item.width * 2 ? '  ' : ' ';
+                                        lineText += spaces;
+                                    }
+                                }
+                                lineText += item.text;
+                                lastXEnd = item.x + item.width;
+                            });
+                            
+                            fullText += lineText + '\n';
+                            lastY = y;
+                        });
+                        
+                        // Add page break between pages
+                        if (pageNum < numPages) {
+                            fullText += '\n\n';
+                        }
+                    }
+                    
+                    text = fullText.trim();
+                } catch (error) {
+                    alert('Error reading PDF file: ' + error.message);
+                    event.target.value = '';
+                    return;
+                }
+            } else {
+                // Handle text file
+                const reader = new FileReader();
+                await new Promise((resolve, reject) => {
+                    reader.onload = function(e) {
+                        text = e.target.result;
+                        resolve();
+                    };
+                    reader.onerror = reject;
+                    reader.readAsText(file);
+                });
+            }
+            
+            // Process the extracted text
+            originalText = text;
+            // Save imported text to localStorage
+            localStorage.setItem('importedText', text);
+            pages = splitIntoPages(text);
+            if (pages.length > 1) {
+                document.getElementById('pagination').style.display = 'flex';
+            } else {
+                document.getElementById('pagination').style.display = 'none';
+            }
+            // Reset to first page when importing new file
+            currentPage = 0;
+            localStorage.setItem('currentPage', 0);
+            displayPage(0);
+            
+            // Reset file input so same file can be selected again
+            event.target.value = '';
+        }
+        
+        function loadText(text) {
+            originalText = text;
+            pages = splitIntoPages(text);
+            if (pages.length > 1) {
+                document.getElementById('pagination').style.display = 'flex';
+            } else {
+                document.getElementById('pagination').style.display = 'none';
+            }
+            // Restore saved page or default to first page
+            const savedPage = getSavedPage();
+            const pageToLoad = savedPage < pages.length ? savedPage : 0;
+            displayPage(pageToLoad);
+        }
+        
+        function exportText() {
+            if (!originalText) {
+                alert('No text to export');
+                return;
+            }
+            
+            const blob = new Blob([originalText], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'exported-text.txt';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+        
+        function resetToDefault() {
+            // Clear imported text from localStorage
+            localStorage.removeItem('importedText');
+            localStorage.setItem('currentPage', 0);
+            // Reload the page to fetch data.txt
+            location.reload();
+        }
+
+        function makeWordsClickable(text) {
+            // Split text into words while preserving spaces and line breaks
+            return text.replace(/(\S+)/g, '<span class="word" onclick="getDefinition(\'$1\')">$1</span>');
+        }
+        
+        function splitIntoPages(text) {
+            const lines = text.split('\n');
+            pages = [];
+            
+            for (let i = 0; i < lines.length; i += LINES_PER_PAGE) {
+                const pageLines = lines.slice(i, i + LINES_PER_PAGE);
+                pages.push(pageLines.join('\n'));
+            }
+            
+            return pages;
+        }
+        
+        function displayPage(pageIndex) {
+            if (pageIndex < 0 || pageIndex >= pages.length) return;
+            
+            currentPage = pageIndex;
+            const contentDiv = document.getElementById('content');
+            const pageContent = pages[currentPage].trim();
+            
+            // Check if it's "Hello World" and apply special styling
+            if (originalText.trim() === 'Hello World' && pageContent === 'Hello World') {
+                contentDiv.classList.add('hello-world');
+                contentDiv.innerHTML = makeWordsClickable(pageContent);
+            } else {
+                contentDiv.classList.remove('hello-world');
+                contentDiv.innerHTML = makeWordsClickable(pageContent);
+            }
+            
+            // Update pagination controls
+            document.getElementById('page-info').textContent = `Page ${currentPage + 1} of ${pages.length}`;
+            document.getElementById('prev-btn').disabled = currentPage === 0;
+            document.getElementById('next-btn').disabled = currentPage === pages.length - 1;
+            
+            // Save current page to localStorage
+            localStorage.setItem('currentPage', currentPage);
+            
+            // Scroll to top
+            window.scrollTo(0, 0);
+        }
+        
+        function getSavedPage() {
+            const savedPage = localStorage.getItem('currentPage');
+            if (savedPage !== null) {
+                const pageNum = parseInt(savedPage, 10);
+                if (!isNaN(pageNum) && pageNum >= 0) {
+                    return pageNum;
+                }
+            }
+            return 0; // Default to first page
+        }
+        
+        function previousPage() {
+            if (currentPage > 0) {
+                displayPage(currentPage - 1);
+            }
+        }
+        
+        function nextPage() {
+            if (currentPage < pages.length - 1) {
+                displayPage(currentPage + 1);
+            }
+        }
+
+        async function getDefinition(word) {
+            // Clean the word (remove punctuation)
+            const cleanWord = word.replace(/[^\w]/g, '');
+            if (!cleanWord) return;
+
+            const definitionDiv = document.getElementById('definition');
+            const contentDiv = document.getElementById('definition-content');
+            const wordHeader = document.getElementById('definition-word');
+            
+            // Set the word in header
+            wordHeader.textContent = cleanWord;
+            
+            // Show definition popup
+            definitionDiv.classList.remove('hidden');
+            definitionDiv.classList.add('show');
+            contentDiv.classList.add('loading');
+            contentDiv.textContent = 'Loading definition...';
+
+            try {
+                // Get the prompt (custom or default) and replace {word} placeholder
+                const promptTemplate = getPrompt();
+                const prompt = promptTemplate.replace('{word}', cleanWord);
+                
+                const response = await fetch(MISTRAL_API_URL, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer ' + MISTRAL_API_KEY
+                    },
+                    body: JSON.stringify({
+                        model: 'mistral-tiny',
+                        messages: [
+                            {
+                                role: 'user',
+                                content: prompt
+                            }
+                        ],
+                        max_tokens: 100
+                    })
+                });
+
+                const data = await response.json();
+                
+                contentDiv.classList.remove('loading');
+                
+                if (data.choices && data.choices[0] && data.choices[0].message) {
+                    contentDiv.textContent = data.choices[0].message.content;
+                } else {
+                    contentDiv.textContent = 'Definition not found.';
+                }
+            } catch (error) {
+                contentDiv.classList.remove('loading');
+                contentDiv.textContent = 'Error: ' + error.message;
+            }
+        }
+
+        function closeDefinition() {
+            const definitionDiv = document.getElementById('definition');
+            definitionDiv.classList.remove('show');
+            definitionDiv.classList.add('hidden');
+        }
+
+        // Close definition when tapping outside (mobile-friendly)
+        document.addEventListener('click', function(event) {
+            const definitionDiv = document.getElementById('definition');
+            if (definitionDiv.classList.contains('show') && 
+                !definitionDiv.contains(event.target) && 
+                !event.target.classList.contains('word')) {
+                closeDefinition();
+            }
+        });
+
+        // Check if there's imported text in localStorage
+        const importedText = localStorage.getItem('importedText');
+        if (importedText) {
+            // Load imported text
+            loadText(importedText);
+        } else {
+            // Show default "Hello World" text
+            const helloWorldText = 'Hello World';
+            originalText = helloWorldText;
+            loadText(helloWorldText);
+        }
+        
+        // Auto-hide settings button and definition on scroll - only show at top
+        const settingsBtn = document.getElementById('settings-btn');
+        let lastScrollTop = 0;
+        
+        window.addEventListener('scroll', function() {
+            const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+            const definitionDiv = document.getElementById('definition');
+            
+            // Show button only when at the very top (scrollTop === 0)
+            if (scrollTop === 0) {
+                settingsBtn.classList.remove('hidden');
+            } 
+            // Hide button immediately when user starts scrolling down
+            else {
+                settingsBtn.classList.add('hidden');
+                // Also close menu if open
+                closeSettingsMenu();
+            }
+            
+            // Hide definition when scrolling down
+            if (definitionDiv.classList.contains('show')) {
+                if (scrollTop > lastScrollTop && scrollTop > 50) {
+                    // Scrolling down - hide definition
+                    definitionDiv.classList.add('hidden');
+                } else if (scrollTop < lastScrollTop || scrollTop <= 50) {
+                    // Scrolling up or at top - show definition if it was visible
+                    definitionDiv.classList.remove('hidden');
+                }
+            }
+            
+            lastScrollTop = scrollTop;
+        }, false);
+        
+        // Also check on page load to ensure button is visible at top
+        window.addEventListener('load', function() {
+            const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+            if (scrollTop === 0) {
+                settingsBtn.classList.remove('hidden');
+            }
+        });
+    </script>
+</body>
+</html>
